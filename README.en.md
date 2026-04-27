@@ -3,10 +3,10 @@
 Call recording on stock **Pixel 6+** (Tensor) and other modern Android devices, **without root and without an unlocked bootloader**, via Shizuku.
 
 <p align="center">
-  <img src="docs/screenshots/01-home.png" width="220" alt="Call list">
-  <img src="docs/screenshots/02-playback.png" width="220" alt="Playback">
-  <img src="docs/screenshots/03-transcript.png" width="220" alt="Transcript">
-  <img src="docs/screenshots/04-settings.png" width="220" alt="Settings">
+  <img src="docs/screenshots/01-home.jpg" width="220" alt="Call list">
+  <img src="docs/screenshots/02-playback.jpg" width="220" alt="Playback">
+  <img src="docs/screenshots/03-transcript.jpg" width="220" alt="Transcript">
+  <img src="docs/screenshots/04-settings.jpg" width="220" alt="Settings">
 </p>
 
 > 🇺🇦 **Full documentation in Ukrainian:** [`README.md`](README.md). This English version is condensed.
