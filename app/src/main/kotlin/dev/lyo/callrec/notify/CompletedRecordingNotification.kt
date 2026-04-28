@@ -59,7 +59,15 @@ object CompletedRecordingNotification {
             .setStyle(NotificationCompat.BigTextStyle().bigText(subtitle))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            // VISIBILITY_PRIVATE: lockscreen shows only the channel name +
+            // generic "Saved" placeholder, full subtitle (contact name +
+            // duration) appears after unlock. Earlier VISIBILITY_PUBLIC
+            // leaked PII like "Дзвінок записано: Джерело — Харків · 3:42"
+            // to anyone glancing at the lockscreen — a real OPSEC concern
+            // for journalist/high-risk personas. The active recording
+            // notification stays PUBLIC by design (T3 threat-model decision
+            // to never hide the fact that recording is happening).
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(tap)

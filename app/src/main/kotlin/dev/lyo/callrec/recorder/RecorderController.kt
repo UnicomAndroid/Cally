@@ -326,10 +326,15 @@ class RecorderController(
 
         val mask = try {
             svc.startDualRecord(strategy.uplinkSource!!, strategy.downlinkSource!!, sampleRate, upWrite, dnWrite)
-        } catch (e: android.os.DeadObjectException) {
+        } catch (e: android.os.RemoteException) {
+            // ALL RemoteException subclasses (DeadObject, TransactionTooLarge,
+            // DeadSystemRuntime, etc.) bubble to openStrategy → Transient.
+            // Without this branch, `catch (_: Throwable)` below swallows them
+            // and returns 0 → InitFailure → poisons the capability cache for
+            // a strategy that's actually working — the daemon just hiccuped.
             runCatching { upWrite.close() }; runCatching { dnWrite.close() }
             runCatching { upRead.close() }; runCatching { dnRead.close() }
-            throw e  // bubble to openStrategy → Transient
+            throw e
         } catch (_: Throwable) { 0 }
         runCatching { upWrite.close() }; runCatching { dnWrite.close() }
 
@@ -339,8 +344,8 @@ class RecorderController(
             return null
         }
 
-        val upMeter = AudioLevelMeter().also { uplinkMeter = it }
-        val dnMeter = AudioLevelMeter().also { downlinkMeter = it }
+        val upMeter = AudioLevelMeter(sampleRate).also { uplinkMeter = it }
+        val dnMeter = AudioLevelMeter(sampleRate).also { downlinkMeter = it }
         val ext = currentExt()
         val upFile = storage.create(callId, "uplink", ext)
         val dnFile = storage.create(callId, "downlink", ext)
@@ -359,16 +364,20 @@ class RecorderController(
         val channelMask = if (strategy.stereo) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
         val ok = try {
             svc.startSingleRecord(strategy.singleSource!!, sampleRate, channelMask, write)
-        } catch (e: android.os.DeadObjectException) {
+        } catch (e: android.os.RemoteException) {
+            // See tryDual: bubble ALL RemoteException subclasses up so
+            // openStrategy classifies them as Transient — without this the
+            // `catch (_: Throwable)` swallows everything except DeadObject
+            // and the cache learns false negatives.
             runCatching { write.close() }
             runCatching { read.close() }
-            throw e  // bubble to openStrategy → Transient
+            throw e
         } catch (_: Throwable) { 0 }
         runCatching { write.close() }
 
         if (ok == 0) { runCatching { read.close() }; return null }
 
-        val meter = AudioLevelMeter().also { uplinkMeter = it }
+        val meter = AudioLevelMeter(sampleRate).also { uplinkMeter = it }
         downlinkMeter = null
         val tag = when (strategy) {
             Strategy.SingleVoiceCallStereo -> "voicecall_stereo"
@@ -451,7 +460,8 @@ class RecorderController(
     }
 
     /**
-     * Stop the active recording. Returns the (possibly downgraded) outcome.
+     * Stop the active recording, drain pumps, finalise file headers, and
+     * return the (possibly downgraded) outcome.
      *
      * Post-mortem cleanup: if a Dual outcome ended up with one side
      * permanently silent (max RMS below the audible floor over the entire
@@ -461,10 +471,6 @@ class RecorderController(
      * sums both sides via sidetone, so the downlink track has the full
      * conversation. Without this downgrade the user ends up with two files,
      * one of which is two minutes of zero PCM.
-     */
-    /**
-     * Stop the active recording, drain pumps, finalise file headers, and
-     * return the (possibly downgraded) outcome.
      *
      * Suspending so callers can await on a coroutine without blocking. The
      * pump threads can take up to 2 s each to drain on EOF — calling this

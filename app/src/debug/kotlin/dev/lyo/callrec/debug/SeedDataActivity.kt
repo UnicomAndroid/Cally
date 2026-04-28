@@ -38,6 +38,25 @@ class SeedDataActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Activity is exported=true (required for shell `am start` to work on
+        // Samsung One UI 16+ debug builds), so guard at runtime: only honour
+        // invocations from the shell or from our own package. Without this
+        // any other on-device app on a debug install could wipe the
+        // recordings DB by firing an Intent at us.
+        //
+        // We use Activity.referrer (Uri "android-app://<pkg>") instead of
+        // launchedFromUid because the latter is unreliable across vendors —
+        // verified to return -1 on Samsung One UI 16 (API 36) for shell
+        // invocations even though minSdk 31 supposedly exposes it.
+        val ref = referrer?.host
+        val trusted = ref == "com.android.shell" || ref == packageName
+        if (!trusted) {
+            Log.w(TAG, "rejected: referrer=$ref")
+            Toast.makeText(this, "SeedDataActivity: untrusted caller blocked", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+        Log.i(TAG, "trusted referrer=$ref — running seed")
         scope.launch {
             val count = withContext(Dispatchers.IO) { runSeed() }
             Toast.makeText(this@SeedDataActivity, "Seeded $count records", Toast.LENGTH_SHORT).show()

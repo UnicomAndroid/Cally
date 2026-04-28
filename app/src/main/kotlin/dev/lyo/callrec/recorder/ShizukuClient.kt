@@ -98,7 +98,11 @@ class ShizukuClient(private val ctx: Context) {
         if (current is DaemonHealth.Bound) return
 
         val s = when {
-            !Shizuku.pingBinder() -> DaemonHealth.NotRunning
+            // Distinguish "Shizuku app not installed" from "installed but not
+            // running" — the notification + onboarding card render different
+            // copy and CTA for each. pingBinder() returns false in both
+            // cases, so we probe PackageManager to disambiguate.
+            !Shizuku.pingBinder() -> if (isShizukuInstalled()) DaemonHealth.NotRunning else DaemonHealth.NotInstalled
             @Suppress("DEPRECATION") Shizuku.isPreV11() -> DaemonHealth.NotRunning
             Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED -> DaemonHealth.NoPermission
             else -> {
@@ -142,6 +146,17 @@ class ShizukuClient(private val ctx: Context) {
     }
 
     fun refresh() = recompute()
+
+    /**
+     * Cheap PackageManager probe used by [recompute] to tell `NotInstalled`
+     * apart from `NotRunning`. The manifest declares `<queries>` for the
+     * canonical `moe.shizuku.privileged.api` package — without it,
+     * Android 11+ would return NameNotFoundException even on installed
+     * devices.
+     */
+    private fun isShizukuInstalled(): Boolean = runCatching {
+        ctx.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0)
+    }.isSuccess
 
     companion object {
         private const val REQUEST_CODE = 0xCA11

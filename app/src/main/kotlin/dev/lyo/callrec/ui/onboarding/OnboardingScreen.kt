@@ -187,12 +187,17 @@ fun OnboardingScreen(
                 } else null,
                 actionLabel = stringResource(R.string.onboarding_step_grant),
             )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Step numbering shifts based on whether POST_NOTIFICATIONS is
+            // shown (Tiramisu+ only). Without this Android 13+ users saw
+            // "1, 2, 3, 4, 4, 5, 6" — two steps with the same number.
+            val showsNotifStep = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            var stepIdx = 4
+            if (showsNotifStep) {
                 val notifGranted = ContextCompat.checkSelfPermission(
                     ctx, android.Manifest.permission.POST_NOTIFICATIONS,
                 ) == PackageManager.PERMISSION_GRANTED
                 StepCard(
-                    index = 4,
+                    index = stepIdx++,
                     icon = Icons.Outlined.Bolt,
                     title = stringResource(R.string.onboarding_notif_perm_title),
                     desc = stringResource(R.string.onboarding_notif_perm_body),
@@ -204,7 +209,7 @@ fun OnboardingScreen(
                 )
             }
             StepCard(
-                index = 4,
+                index = stepIdx++,
                 icon = Icons.Outlined.LockOpen,
                 title = "Дозволи системи",
                 desc = "Мікрофон, сповіщення, статус телефону, журнал дзвінків, контакти — щоб запис стартував і поряд із записом було видно, з ким говорили.",
@@ -213,7 +218,7 @@ fun OnboardingScreen(
                 actionLabel = "Дозволити",
             )
             StepCard(
-                index = 5,
+                index = stepIdx++,
                 icon = Icons.Outlined.Layers,
                 title = stringResource(R.string.onboarding_step_overlay),
                 desc = stringResource(R.string.onboarding_step_overlay_desc),
@@ -230,7 +235,7 @@ fun OnboardingScreen(
                 actionLabel = stringResource(R.string.onboarding_step_overlay_action),
             )
             StepCard(
-                index = 6,
+                index = stepIdx++,
                 icon = Icons.Outlined.BatteryFull,
                 title = stringResource(R.string.onboarding_step_battery),
                 desc = stringResource(R.string.onboarding_step_battery_desc),
