@@ -22,6 +22,22 @@
 ### Застаріле (Deprecated)
 -
 
+## [0.4.0] — 2026-04-28
+
+### Додано
+- **Voice-memo mode у мануальному записі** — `RecorderController.start(callId, voiceMemo = true)` пропускає всю dual/voicecall fallback-драбину і одразу відкриває `Strategy.SingleMic`. Без call audio path інші стратегії все одно деградували б до MIC, але через 5 сек тиші, з помилковим показом "downlink silent" у банері. Сесії маркуються в БД як `mode = "VoiceMemo"`, CallLog post-mortem пропускається щоб не привʼязати випадковий контакт до диктофонного запису.
+- **Multi-speaker діаризація + smart-title в транскрипції** — промпт `Transcriber` оновлено щоб модель повертала `speakers: [{id, label}]` замість фіксованих me/them, плюс поле `title` (короткий опис до 60 символів). Парсер `TranscriptCodec` обробляє нову схему з backward-compat для legacy записів (старе `speaker: "me"|"them"` транслюється у synthetic speakers). У списку записів voice-memo нарешті отримує осмислену назву (наприклад «Список покупок і плани на вихідні») замість дати, як тільки користувач транскрибує.
+- **Telegram-style chat layout для транскрипції** — `TranscriptView` рендериться як месенджер: основний спікер (id=ME або перший у списку) праворуч у `primaryContainer`-bubble, інші ліворуч у нейтральному `surfaceContainerHigh`, з ініціал-аватаром (тільки на першій репліці групи), асиметричний `RoundedCornerShape` для bubble-силуету. Час і тон — у нижньому правому кутку bubble.
+- **Куратовна 8-кольорова палітра спікерів — лише на аватарах** — кожен унікальний голос отримує власний відтінок (azure / amber / teal / rose / indigo / olive / terracotta / cyan) з окремими варіантами під light і dark теми. Колір живе тільки на ініціал-аватарі і header-лейблі над першою реплікою групи; bubbles нейтральні (TG-pattern: «painted avatar, grey cloud»). Палітра локальна у `PlaybackScreen.chatAccents()` бо M3 `colorScheme` дає лише ~3 container ролі — недостатньо для категоричних кольорів зустрічей з 4+ спікерами.
+
+### Змінено
+- **Кнопка зупинення тепер у банері статусу** — раніше була у bottom-right floating toolbar, що погано звʼязувалось зі статусом запису у верхньому банері. Тепер `FilledIconButton` зі Stop іконкою живе праворуч у самому банері, поряд із текстом «Запис увімкнено». FAB прибрано (без дублювання).
+- **Список записів і live-meter ховають другу доріжку для voice-memo** — `Levels.voiceMemo: Boolean` пробивається з `RecorderController` у UI; `StatusBanner` рендерить лише uplink meter, RecordingRow показує «Голосовий запис · 28 квіт, 15:42» замість прочерка.
+- **Транскрипція рендериться flush, без обгортання у Card** — раніше `TranscriptionSection` була загорнута у `surfaceContainerLow` Card, що зʼїдало ~32 dp padding'у і дублювало візуальну ієрархію (Card-у-Card). Тепер chat-bubbles лежать прямо на playback screen surface, як стрічка повідомлень у Telegram.
+
+### Виправлено
+- Імʼя для записів без контакту більше не показується як «—» — для voice-memo коректно показується «Голосовий запис» + дата/час, або AI-title якщо запис уже транскрибовано.
+
 ## [0.3.0] — 2026-04-28
 
 ### Додано
@@ -134,7 +150,8 @@
 - Bluetooth-гарнітура під час дзвінка може зламати запис на деяких HAL.
 - Samsung One UI 5.1+ потребує fallback на MIC-only стратегії — VOICE_* з shell UID повертає тишу.
 
-[Unreleased]: https://github.com/LyoSU/cally/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/LyoSU/cally/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/LyoSU/cally/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/LyoSU/cally/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/LyoSU/cally/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/LyoSU/cally/releases/tag/v0.1.0
