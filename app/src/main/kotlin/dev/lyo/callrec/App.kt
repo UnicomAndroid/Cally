@@ -3,6 +3,9 @@ package dev.lyo.callrec
 
 import android.app.Application
 import android.util.Log
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import dev.lyo.callrec.cleanup.CleanupJob
 import dev.lyo.callrec.di.AppContainer
 import dev.lyo.callrec.notify.NotificationChannels
@@ -23,6 +26,14 @@ class App : Application() {
         Log.i("Callrec", "[App] onCreate begin")
         super.onCreate()
         NotificationChannels.ensure(this)
+        // On every transition to RESUMED (app foregrounded), do a one-shot
+        // AIDL ping against the bound daemon to detect zombie state. Costs
+        // nothing while in background. Listener-driven for the rest.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) {
+                container.appScope.launch { container.shizuku.verifyHealth() }
+            }
+        })
         container = AppContainer(this)
         // Pre-warm Shizuku UserService daemon on a worker thread. Cold spawn
         // on Samsung takes 5-15 s; doing the bind via Shizuku Binder IPC on
