@@ -342,7 +342,7 @@ class RecorderController(
                 totalFrames = up.totalFrames,
             )
             // Audible if either side has live signal above the floor.
-            if (up.lastRms > AUDIBLE_THRESHOLD || (dn != null && dn.lastRms > AUDIBLE_THRESHOLD)) {
+            if (up.isAudible || (dn != null && dn.isAudible)) {
                 startWatchdog()
                 return Verdict.Audible
             }
@@ -398,9 +398,11 @@ class RecorderController(
         // Snapshot per-side max RMS BEFORE teardown nulls out the meters.
         val upMax = uplinkMeter?.maxRms ?: 0f
         val dnMax = downlinkMeter?.maxRms ?: 0f
+        val upFloor = uplinkMeter?.calibratedFloor ?: 0.001f
+        val dnFloor = downlinkMeter?.calibratedFloor ?: 0.001f
         withContext(Dispatchers.IO) { teardown() }
         val rawOutcome = activeOutcome
-        val out = downgradeIfHalfSilent(rawOutcome, upMax, dnMax)
+        val out = downgradeIfHalfSilent(rawOutcome, upMax, dnMax, upFloor, dnFloor)
         activeOutcome = null
         watchdog?.cancel(); watchdog = null
         _levels.value = Levels()
@@ -408,10 +410,13 @@ class RecorderController(
         return out
     }
 
-    private fun downgradeIfHalfSilent(out: Outcome?, upMax: Float, dnMax: Float): Outcome? {
+    private fun downgradeIfHalfSilent(
+        out: Outcome?, upMax: Float, dnMax: Float,
+        upFloor: Float, dnFloor: Float,
+    ): Outcome? {
         if (out !is Outcome.Dual) return out
-        val upSilent = upMax < AUDIBLE_THRESHOLD
-        val dnSilent = dnMax < AUDIBLE_THRESHOLD
+        val upSilent = upMax < upFloor + AUDIBLE_DELTA
+        val dnSilent = dnMax < dnFloor + AUDIBLE_DELTA
         return when {
             upSilent && !dnSilent -> {
                 L.i("Recorder", "downgrade: uplink silent (max=$upMax) — keeping downlink only")
@@ -464,20 +469,12 @@ class RecorderController(
 
     companion object {
         /**
-         * Above this normalised RMS (1.0 = full scale) we declare "audible".
-         *
-         * 0.005 ≈ -46 dBFS. Empirically:
-         *  • Mic preamp drift / DC bias on Pixel 10 telephony stream: ~0.003
-         *    (-50 dBFS) — we want to REJECT this, otherwise we adopt a stream
-         *    that records silence and the user gets an empty file.
-         *  • Ringback tones (~0.05 RMS, -26 dBFS) — clearly above.
-         *  • Conversational voice (~0.02..0.20, -34..-14 dBFS) — well above.
-         *
-         * Earlier 0.0008 was set so SingleMic could pass on quiet rooms;
-         * MIC has its own carve-out (last-resort force-adopt) so the
-         * threshold can be tighter for the rest.
+         * Mirrors [AudioLevelMeter.AUDIBLE_DELTA]. We can't reference it directly
+         * because it's `private` over there; this duplication is intentional —
+         * keeping the threshold private to the meter avoids exporting it as API.
+         * Update both if either changes.
          */
-        private const val AUDIBLE_THRESHOLD = 0.005f
+        private const val AUDIBLE_DELTA = 0.008f
         /** UI tick + watchdog cadence. */
         private const val LEVEL_TICK_MS = 60L
         /**
