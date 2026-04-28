@@ -283,7 +283,7 @@ Material 3, це **архітектурне обмеження обхіду**.
 Кожна спроба:
 
 - ctor → якщо `STATE_UNINITIALIZED`, в `knownFailedInit` назавжди для цього `Build.FINGERPRINT`.
-- запис → 5-секундне вікно, RMS metering обох доріжок. Поріг `AUDIBLE_THRESHOLD = 0.005` (≈ -46 dBFS) — нижче відкидаємо як тишу (mic preamp drift на Pixel 10 ≈ -50 dBFS).
+- запис → 5-секундне вікно, RMS metering обох доріжок з **адаптивним noise floor** (`AudioLevelMeter.calibratedFloor` — медіана першого ~500 мс семплів). Аудіо "чутне" iff `lastRms > calibratedFloor + AUDIBLE_DELTA (0.008)` — поріг навчається per-stream замість фіксованого global константа, тож працює коректно і на Pixel 10 (mic drift ≈ -50 dBFS), і на Samsung з активним NS chip.
 - "3 страйки" перед blacklist (Samsung модем іноді відкриває path не зразу — одна мовчазна спроба ≠ перманентний gap).
 - успіх → кешуємо в `preferredStrategy`, наступний дзвінок стартує одразу з неї.
 

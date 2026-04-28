@@ -95,7 +95,7 @@
 4. `VOICE_CALL` mono — mix-down від HAL.
 5. `MIC` only — last resort, через гучномовець.
 
-Кожна спроба перевіряється **live-audibility verification**: 5-секундне вікно з RMS metering обох доріжок проти `AUDIBLE_THRESHOLD` (-46 dBFS). Якщо тиша — strategy «провалилась», переходимо до наступної. «3 страйки» перед blacklist — Samsung модем іноді відкриває path не зразу.
+Кожна спроба перевіряється **live-audibility verification**: 5-секундне вікно з RMS metering обох доріжок проти **адаптивного noise floor** (`AudioLevelMeter.calibratedFloor` — медіана першого ~500 мс семплів) + `AUDIBLE_DELTA = 0.008` (~+6 dB). Поріг навчається per-stream замість фіксованої константи — це коректно працює і на Pixel (mic drift ≈ -50 dBFS), і на Samsung (NS chip активний). Якщо тиша — strategy «провалилась», переходимо до наступної. «3 страйки» перед blacklist — Samsung модем іноді відкриває path не зразу.
 
 Успішна стратегія кешується по `Build.FINGERPRINT` — наступний дзвінок стартує одразу з неї.
 
