@@ -22,6 +22,21 @@
 ### Застаріле (Deprecated)
 -
 
+## [0.4.1] — 2026-04-28
+
+### Виправлено
+- **`RecorderController.tryDual` / `trySingle`** — внутрішній `catch (DeadObjectException)` був вужчий ніж зовнішній `catch (RemoteException)` у `openStrategy`, тому всі інші підкласи `RemoteException` (TransactionTooLargeException тощо) ковтались наступним `catch (Throwable) { 0 }` і класифікувались як `InitFailure` → отруювали capability cache. Тепер ловимо весь `RemoteException` ієрархічно, dead-object теж летить тим же шляхом → коректний `Transient` без cache poisoning.
+- **`DaemonHealth.NotInstalled` тепер реально досяжний** — `ShizukuClient.recompute()` додатково пробує `PackageManager.getPackageInfo("moe.shizuku.privileged.api", 0)` щоб відрізнити «не встановлений» від «встановлений але не запущений». Раніше обидва випадки сходились у `NotRunning`, нотифікація «cally: Shizuku not installed» і відповідна StepCard в onboarding були мертвим кодом.
+- **Onboarding step indices** — на Android 13+ POST_NOTIFICATIONS і «Дозволи системи» обидва мали `index = 4`, користувач бачив «1, 2, 3, 4, 4, 5, 6». Замінено на лічильник `var stepIdx = 4; index = stepIdx++`, що дає консистентне 4/5/6/7 на Tiramisu+ і 4/5/6 на старіших.
+- **`AudioLevelMeter` warmup тепер 500 мс реального аудіо** — раніше калібровка тривала 50 викликів `update()`, що при 8KB pump-чанках = ~25 секунд. Pixel ringback (~1 с) попадав у медіану → calibratedFloor завищувався → реальна розмова реєструвалась як тиша → strategy зайво деградувала по драбині. Тепер гейт за `totalFrames >= sampleRate / 2`, що гарантовано 500 мс незалежно від розміру буфера.
+
+### Безпека
+- **`SeedDataActivity` (debug-only) тепер перевіряє caller** — раніше `exported=true` без runtime-guard'а дозволяв будь-якому додатку на пристрої з debug-інсталяцією знести БД записів через простий Intent. Додано перевірку `Activity.referrer.host == "com.android.shell" || == packageName` — `am start` з ADB проходить, інші on-device виклики блокуються із Toast'ом «untrusted caller blocked». Спробували `exported=false` спершу, але Samsung One UI 16 рефюзить shell-старти non-exported activities навіть на debuggable-білдах.
+- **`CompletedRecordingNotification.visibility = VISIBILITY_PRIVATE`** — раніше було `VISIBILITY_PUBLIC` і lockscreen показував повне ім'я контакту («Дзвінок записано: Джерело — Харків · 3:42»). Реальна OPSEC проблема для T2 (журналіст). Активна нотифікація запису лишається `PUBLIC` за threat-model рішенням «не приховуємо факт запису».
+
+### Змінено
+- Прибрано дубльований KDoc-блок над `RecorderController.stop()`.
+
 ## [0.4.0] — 2026-04-28
 
 ### Додано
@@ -150,7 +165,8 @@
 - Bluetooth-гарнітура під час дзвінка може зламати запис на деяких HAL.
 - Samsung One UI 5.1+ потребує fallback на MIC-only стратегії — VOICE_* з shell UID повертає тишу.
 
-[Unreleased]: https://github.com/LyoSU/cally/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/LyoSU/cally/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/LyoSU/cally/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/LyoSU/cally/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/LyoSU/cally/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/LyoSU/cally/compare/v0.1.0...v0.2.0
