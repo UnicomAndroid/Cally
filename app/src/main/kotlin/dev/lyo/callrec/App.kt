@@ -8,8 +8,11 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.lyo.callrec.cleanup.CleanupJob
 import dev.lyo.callrec.di.AppContainer
+import dev.lyo.callrec.notify.DaemonHealthNotification
 import dev.lyo.callrec.notify.NotificationChannels
 import java.io.File
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class App : Application() {
@@ -35,6 +38,9 @@ class App : Application() {
             }
         })
         container = AppContainer(this)
+        container.shizuku.health
+            .onEach { DaemonHealthNotification.update(this, it) }
+            .launchIn(container.appScope)
         // Pre-warm Shizuku UserService daemon on a worker thread. Cold spawn
         // on Samsung takes 5-15 s; doing the bind via Shizuku Binder IPC on
         // the main thread (as the earlier code did) blocked Application
