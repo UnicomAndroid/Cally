@@ -146,6 +146,6 @@ class ShizukuClient(private val ctx: Context) {
         private const val REQUEST_CODE = 0xCA11
         // Must match userservice/build.gradle.kts → userServiceVersion.
         // Bump together when the AIDL contract or service semantics change.
-        private const val USER_SERVICE_VERSION = 11
+        private const val USER_SERVICE_VERSION = 12
     }
 }
