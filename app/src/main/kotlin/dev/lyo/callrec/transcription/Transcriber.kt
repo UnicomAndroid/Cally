@@ -184,26 +184,36 @@ private class CloudTranscriber(private val settings: AppSettings) : Transcriber 
         // prompt and let response_format=json_object enforce well-formedness.
         //
         // Multi-speaker diarization: model emits a `speakers` list once and
-        // segments reference it by `speaker_id`. For phone calls Gemini
-        // tends to label the ids "ME"/"THEM" cleanly when given the channel
-        // hint; for voice memos with several people present it can produce
-        // arbitrary "A"/"B"/… ids with names lifted from the conversation
-        // ("Привіт Олю!" → speaker B label "Оля").
+        // segments reference it by `speaker_id`. We feed a mono mix (Gemini
+        // auto-downmixes anything else per their docs) with per-side levels
+        // already balanced by the recorder — so diarization rests on voice
+        // characteristics alone (tone / pitch / timbre / cadence). For voice
+        // memos with several people present the model can lift names from
+        // the conversation itself ("Привіт Олю!" → speaker B label "Оля").
         private val PROMPT = """
             Транскрибуй цей запис аудіо. Розпізнавай мову автоматично
             (українська / російська / англійська / суміш — зберігай як є).
 
+            Аудіо — моно з ВИРІВНЯНИМИ рівнями обох сторін. Канальних підказок
+            у файлі немає, розрізняй спікерів ВИКЛЮЧНО за акустичними ознаками
+            голосу (висота / тембр / темп / манера).
+
             Розпізнавай ОКРЕМО кожного спікера:
-            • Якщо це телефонний дзвінок (стерео з відмінністю каналів або
-              характерне phone-line звучання): ЛІВИЙ/основний канал → id "ME",
-              label "Я"; інший → id "THEM", label "Співрозмовник" (або імʼя
-              якщо звучить у розмові).
-            • Якщо це звичайний аудіозапис з кількома голосами: створи окрему
-              запис у speakers на КОЖЕН різний голос. id — короткі ярлики
-              "A", "B", "C"… label — імʼя якщо чути ("Оля", "Микола"),
+            • Якщо це телефонний дзвінок (характерне phone-line звучання,
+              діалог двох людей): рівно ДВА спікери. id "ME" — той хто
+              говорить ближче і чистіше (мікрофонний бік), label "Я";
+              id "THEM" — інший голос, label "Співрозмовник" (або імʼя якщо
+              звучить у розмові).
+            • Якщо це звичайний аудіозапис з кількома голосами: створи
+              окремий запис у speakers на КОЖЕН різний голос. id — короткі
+              ярлики "A", "B", "C"… label — імʼя якщо чути ("Оля", "Микола"),
               інакше "Спікер 1", "Спікер 2"…
-            • Тон, pitch і темп — головні ознаки розрізнення. Не плутай зміну
-              гучності або емоції одного й того ж спікера з різними людьми.
+            • Тон, pitch, темп і манера мовлення — головні ознаки розрізнення.
+              Не плутай зміну гучності або емоції одного й того ж спікера з
+              різними людьми. Жінка vs чоловік — майже завжди різні id.
+            • НЕ зливай весь діалог на одного спікера лише тому що один голос
+              трохи виразніший за інший. Якщо ти чуєш дві відмінні голосові
+              характеристики — це двоє людей.
 
             Поле "title" — короткий опис змісту запису (до 60 символів),
             українською, без лапок і емодзі. Як назва нотатки. Приклади:

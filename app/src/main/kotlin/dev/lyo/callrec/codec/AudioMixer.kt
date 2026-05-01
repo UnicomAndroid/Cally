@@ -7,34 +7,32 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
- * Combines an uplink and downlink mono recording (WAV or M4A/AAC) into a
- * single 2-channel stereo WAV with a **soft-pan** mix (≈75/25) — uplink
- * sits mostly on the left, downlink mostly on the right, but each side is
- * still audible in the other ear. This matches how conference-call apps
- * lay out a recording: spatial separation for the brain to disentangle
- * speakers, without the "one voice in one ear" weirdness of hard L/R.
+ * Two-output mixer for the dual-stream call recordings:
  *
- * Why not hard-pan (100/0):
- *  - **Listening UX**: pulling out one earbud loses half the conversation.
- *  - **Whisper-based STT**: providers that downmix to mono before inference
- *    see ~50% silence per channel during single-side speech, which confuses
- *    VAD. Soft-pan looks like a real conference recording.
+ *  - [mixToStereoWav] — soft-pan (≈75/25) stereo for human listening (sharing,
+ *    cached playback). Uplink leans left, downlink leans right, each still
+ *    audible in the other ear so that pulling one earbud doesn't lose half the
+ *    conversation.
  *
- * Why not mono sum:
- *  - **Gemini-style audio LLMs**: channel separation is a real diarization
- *    hint. Soft-pan keeps the cue.
- *  - **Overlapping speech**: pure sum smears two simultaneous voices.
+ *  - [mixNormalizedMonoForStt] — RMS-normalised mono sum for cloud audio LLM
+ *    transcription. Gemini's official docs (ai.google.dev/gemini-api/docs/audio)
+ *    state multi-channel audio is automatically combined into a single channel
+ *    before processing, so any panning is wasted bytes. The real diarization
+ *    bug is per-side level imbalance: uplink (mic-direct) is typically ~12 dB
+ *    louder than downlink (post-codec / acoustic loop), so the naive sum lets
+ *    the louder side dominate and the model only "hears" the user. We level
+ *    each side to a common target RMS before summing.
  *
  * Decoding is delegated to [PcmDecoder] — single source of truth for PCM
- * extraction; this object is purely the pan + RIFF-write step.
+ * extraction; this object is purely the mix + RIFF-write step.
  */
 object AudioMixer {
 
     private const val SAMPLE_RATE = 16_000
 
-    /** Pan weights for the dominant side. 0.75 means L = 0.75·up + 0.25·dn. */
     private const val DOMINANT = 0.75f
     private const val BLEED = 1f - DOMINANT
 
@@ -65,6 +63,62 @@ object AudioMixer {
         return out
     }
 
+    /**
+     * Decode both files, level-match each side to [TARGET_RMS], sum to mono
+     * int16, write a single-channel 16 kHz WAV. This is the file we feed to
+     * cloud STT so each speaker has comparable presence in the final mono
+     * spectrogram regardless of which side the recorder captured louder.
+     *
+     * The [MIN_RMS_FOR_GAIN] floor and [MAX_GAIN] ceiling prevent two
+     * pathologies: amplifying near-silent sides into pure noise, and blowing
+     * up a barely-audible side by 30+ dB when the other party never spoke
+     * loud enough to register.
+     */
+    fun mixNormalizedMonoForStt(uplink: File, downlink: File, out: File): File? {
+        val upPcm = PcmDecoder.readBytes(uplink) ?: return null
+        val dnPcm = PcmDecoder.readBytes(downlink) ?: return null
+        val upRms = rmsOf(upPcm)
+        val dnRms = rmsOf(dnPcm)
+        val upGain = gainFor(upRms)
+        val dnGain = gainFor(dnRms)
+
+        val frames = min(upPcm.size, dnPcm.size) / 2
+        val mono = ByteArray(frames * 2)
+        val upBuf = ByteBuffer.wrap(upPcm).order(ByteOrder.LITTLE_ENDIAN)
+        val dnBuf = ByteBuffer.wrap(dnPcm).order(ByteOrder.LITTLE_ENDIAN)
+        val outBuf = ByteBuffer.wrap(mono).order(ByteOrder.LITTLE_ENDIAN)
+        repeat(frames) {
+            val u = upBuf.short.toDouble() * upGain
+            val d = dnBuf.short.toDouble() * dnGain
+            val s = (u + d).toInt().coerceIn(-32768, 32767)
+            outBuf.putShort(s.toShort())
+        }
+        writeWav(out, SAMPLE_RATE, channels = 1, pcm = mono)
+        L.i(
+            TAG,
+            "stt-mix → ${out.path} frames=$frames " +
+                "upRms=${upRms.toInt()}×%.2f dnRms=${dnRms.toInt()}×%.2f"
+                    .format(upGain, dnGain),
+        )
+        return out
+    }
+
+    private fun rmsOf(pcm: ByteArray): Double {
+        val buf = ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN)
+        var sumSq = 0.0
+        var n = 0L
+        while (buf.remaining() >= 2) {
+            val s = buf.short.toDouble()
+            sumSq += s * s
+            n++
+        }
+        return if (n == 0L) 0.0 else sqrt(sumSq / n)
+    }
+
+    private fun gainFor(rms: Double): Double =
+        if (rms < MIN_RMS_FOR_GAIN) 1.0
+        else (TARGET_RMS / rms).coerceAtMost(MAX_GAIN)
+
     private fun writeWav(file: File, sampleRate: Int, channels: Int, pcm: ByteArray) {
         file.parentFile?.mkdirs()
         RandomAccessFile(file, "rw").use { raf ->
@@ -83,6 +137,13 @@ object AudioMixer {
             raf.write(hdr); raf.write(pcm)
         }
     }
+
+    // ~−18 dBFS in int16 (32767 × 10^(-18/20)). Conservative target: two
+    // signals normalised here sum to ≈ −15 dBFS RMS, leaving ~15 dB of
+    // headroom for transient peaks before int16 clipping kicks in.
+    private const val TARGET_RMS = 4128.0
+    private const val MIN_RMS_FOR_GAIN = 50.0
+    private const val MAX_GAIN = 8.0
 
     private const val TAG = "Mixer"
 }

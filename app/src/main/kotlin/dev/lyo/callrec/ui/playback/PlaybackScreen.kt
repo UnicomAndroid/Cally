@@ -503,12 +503,15 @@ fun PlaybackScreen(
 
             // ─── Transcription block (cloud STT via OpenAI-compatible API)
             rec?.let { r ->
-                // For dual recordings we send the mixed stereo file — the
-                // model uses L/R channel separation to distinguish speakers.
-                // Mixing decodes both AAC tracks via MediaCodec — for a
-                // 22-min call that's seconds of work. Run on Dispatchers.Default
-                // and let the UI render before the mix is ready; until then
-                // we fall back to whichever side survives, so the section is
+                // For dual recordings we send a mono RMS-normalised mix.
+                // Gemini auto-downmixes any stereo input (per their docs), so
+                // pan is wasted — the real fix is balancing per-side levels
+                // before the sum so the louder mic-uplink doesn't drown out
+                // the post-codec downlink and let the model "hear" only one
+                // speaker. Mixing decodes both AAC tracks via MediaCodec —
+                // seconds of work for a 22-min call. Run on Dispatchers.Default
+                // and let the UI render before the mix is ready; until then we
+                // fall back to whichever side survives, so the section is
                 // usable immediately even on records where one side was
                 // dropped by the silence-downgrade.
                 val pri = primaryPath
@@ -522,13 +525,14 @@ fun PlaybackScreen(
                     val sec = secondaryPath ?: return@produceState
                     val secFile = java.io.File(sec)
                     value = withContext(Dispatchers.Default) {
-                        val mixed = java.io.File(ctx.cacheDir, "stt/${r.callId}-mix.wav")
+                        val mixed = java.io.File(ctx.cacheDir, "stt/${r.callId}-stt.wav")
                         if (mixed.exists() &&
                             mixed.lastModified() >= maxOf(priFile.lastModified(), secFile.lastModified())
                         ) mixed
                         else {
                             mixed.parentFile?.mkdirs()
-                            dev.lyo.callrec.codec.AudioMixer.mixToStereoWav(priFile, secFile, mixed) ?: priFile
+                            dev.lyo.callrec.codec.AudioMixer
+                                .mixNormalizedMonoForStt(priFile, secFile, mixed) ?: priFile
                         }
                     }
                 }

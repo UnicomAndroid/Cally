@@ -22,6 +22,23 @@
 ### Застаріле (Deprecated)
 -
 
+## [0.5.0] — 2026-05-01
+
+### Змінено
+- **STT-мікс перероблено на RMS-нормалізоване моно** (`AudioMixer.mixNormalizedMonoForStt`). Раніше слали soft-pan стерео в розрахунку на канальну diarization, але офіційна дока Gemini ([ai.google.dev/gemini-api/docs/audio](https://ai.google.dev/gemini-api/docs/audio)) прямо каже: *«multi-channel audio is automatically combined into a single channel»* — pan ігнорується, а stereo додатково створює timestamp drift ±10%. Реальна причина чому модель чула лише користувача — uplink (mic-direct) на ~12 dB голосніший за downlink (post-codec) у сумі. Тепер кожен бік скейлиться до ~−18 dBFS RMS перед сумою → обидва спікери присутні з порівнянною гучністю в моно-міксі. Промпт оновлено: викинуто інструкцію про лівий/правий канал (брехня для моделі), посилено diarization за voice characteristics. Soft-pan стерео-мікс лишається для sharing/playback де він робить свою роботу для людських вух.
+
+### Виправлено
+- **Транскрипція дзвінка більше не зливає весь діалог на «Я»** — наслідок зміни вище. Симптом: на dual-stream записах `Transcriber` повертав сегменти лише з `speaker_id="ME"`, голос співрозмовника або взагалі ігнорувався, або потрапляв у репліки користувача.
+
+### Безпека
+-
+
+### Видалено
+-
+
+### Застаріле (Deprecated)
+-
+
 ## [0.4.1] — 2026-04-28
 
 ### Виправлено
@@ -165,7 +182,8 @@
 - Bluetooth-гарнітура під час дзвінка може зламати запис на деяких HAL.
 - Samsung One UI 5.1+ потребує fallback на MIC-only стратегії — VOICE_* з shell UID повертає тишу.
 
-[Unreleased]: https://github.com/LyoSU/cally/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/LyoSU/cally/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/LyoSU/cally/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/LyoSU/cally/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/LyoSU/cally/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/LyoSU/cally/compare/v0.2.0...v0.3.0
