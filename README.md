@@ -1,515 +1,492 @@
-# cally — Pixel Call Recorder
+# Cally — Pixel 通话录音
 
-Запис телефонних дзвінків на стоковому **Pixel 6+** (Tensor) і інших сучасних
-Android-пристроях, **без root і без розблокованого bootloader**, через Shizuku.
+在原生 **Pixel 6+** (Tensor) 及其他现代 Android 设备上录制电话通话，
+**无需 root、无需解锁 bootloader**，通过 Shizuku 实现。
 
 <p align="center">
-  <img src="docs/screenshots/01-home.jpg" width="180" alt="Список дзвінків">
-  <img src="docs/screenshots/02-playback.jpg" width="180" alt="Плеєр">
-  <img src="docs/screenshots/03-transcript.jpg" width="180" alt="Транскрипт">
-  <img src="docs/screenshots/04-settings.jpg" width="180" alt="Налаштування">
+  <img src="docs/screenshots/01-home.jpg" width="180" alt="通话列表">
+  <img src="docs/screenshots/02-playback.jpg" width="180" alt="播放器">
+  <img src="docs/screenshots/03-transcript.jpg" width="180" alt="转录">
+  <img src="docs/screenshots/04-settings.jpg" width="180" alt="设置">
 </p>
 
-> **Status: MVP scaffold (v0.1.0).** Усе ядро — AIDL-міст, Shizuku
-> UserService, dual-track recorder з fallback chain, WAV writer, foreground
-> service, Material 3 Expressive UI — реалізовано. Перед публічним релізом
-> треба пройти manual test matrix з [«Тестування на реальному пристрої»](#тестування-на-реальному-пристрої)
-> на реальному пристрої.
+> **状态：MVP 骨架 (v0.1.0)。** 所有核心功能 — AIDL 桥梁、Shizuku
+> UserService、双轨录音与回退链、WAV 写入器、前台服务、
+> Material 3 Expressive UI — 已实现。公开发布前
+> 需在实际设备上通过 [「真机测试」](#真机测试) 的手动测试矩阵。
 
-## Чому cally
+## 为什么选择 Cally
 
-Усі звичайні Call Recorder на стокових Pixel **не пишуть голос
-співрозмовника** — Google заблокував `VOICE_CALL/UPLINK/DOWNLINK` для
-non-privileged додатків з Android 10. Native call recording, який Google
-розкотив у Phone app з листопада 2025 року, **в Україні недоступний**:
-станом на квітень 2026 підтверджені регіони включають США, Індію,
-Німеччину, Італію, Іспанію, Румунію, Францію, Австралію, Канаду,
-Ірландію — Google анонсував "all markets" by end of February 2026 перед
-запуском Pixel 10a, але Україна не у списку підтримуваних регіонів. Сам
-Google каже що feature йде до країн "де call recording не заборонене
-законом", з відповідністю disclosure-tone політики країни. Region-switch на
-Pixel не допомагає — gate комбінований (SIM/MCC, Wi-Fi BSSID, GPS, IP),
-на відміну від Samsung (де CSC-перепрошивка обходить за п'ять хвилин).
-Існуючі обхідні шляхи мають суттєві компроміси (root/Magisk з втратою
-Verified Boot і Play Integrity; закриті бінарники; моно-мікс із
-дисбалансом гучності).
+在原生 Pixel 上，所有普通的通话录音应用 **都无法录制对方的声音**
+—— Google 从 Android 10 起对非特权应用封锁了 `VOICE_CALL/UPLINK/DOWNLINK`。
+Google 自 2025 年 11 月起在 Phone 应用中推出的原生通话录音功能
+**在乌克兰不可用**：截至 2026 年 4 月，已确认支持的地区包括美国、印度、
+德国、意大利、西班牙、罗马尼亚、法国、澳大利亚、加拿大、爱尔兰——
+Google 在 Pixel 10a 发布前曾宣布将于 2026 年 2 月底前覆盖"所有市场"，
+但乌克兰不在支持地区列表中。Google 官方表示该功能仅推送至
+"法律不禁止通话录音"的国家，并遵守各国披露提示音政策。
+Pixel 上切换地区无效——门控是组合式的（SIM/MCC、Wi-Fi BSSID、GPS、IP），
+不像三星（刷 CSC 五分钟即可绕过）。
+现有的绕过方案都有显著的代价（root/Magisk 导致 Verified Boot 和 Play Integrity 丢失；
+闭源二进制文件；单声道混音且音量失衡）。
 
-**cally обходить блокування через context attribution всередині Shizuku
-UserService**: наш приватний сервіс запускається у shell-процесі (UID 2000),
-і AudioRecord створюється з контекстом, чия attribution співпадає з
-реальним системним пакетом `com.android.shell` — пакетом, який існує у
-package DB з тим самим UID 2000 і несе signature-level `RECORD_AUDIO`,
-`CAPTURE_AUDIO_OUTPUT` та `MODIFY_AUDIO_ROUTING`. AudioFlinger валідує
-комбінацію `(uid=2000, pkg="com.android.shell")` проти package DB — пара
-справжня — і відкриває `VOICE_*` джерела як для системного компонента.
-Деталі — нижче в [«Як працює обхід»](#як-працює-обхід).
+**Cally 通过 Shizuku UserService 内的上下文归因来绕过封锁**：
+我们的私有服务运行在 shell 进程（UID 2000）中，
+AudioRecord 通过一个上下文创建，该上下文的 attribution 与
+真实系统包 `com.android.shell` 匹配——这个包在 package DB 中存在，
+具有相同的 UID 2000，并持有 signature 级别的 `RECORD_AUDIO`、
+`CAPTURE_AUDIO_OUTPUT` 和 `MODIFY_AUDIO_ROUTING` 权限。AudioFlinger
+验证 `(uid=2000, pkg="com.android.shell")` 组合与 package DB 的匹配——
+该组合是真实的——然后像对系统组件一样开放 `VOICE_*` 音源。
+详情见下方[「绕过原理」](#绕过原理)。
 
-### Юридичний контекст для українських користувачів
+### 乌克兰用户的法律背景
 
-Україна — **one-party consent** юрисдикція. Запис власних телефонних
-розмов учасником цієї ж розмови для особистого використання — легальний
-і не вимагає disclosure beep:
+乌克兰是 **一方同意（one-party consent）** 的司法管辖区。
+通话参与者为个人用途录制自己的电话通话是合法的，无需披露提示音：
 
-- **Конституція України, Стаття 31** гарантує таємницю комунікацій від
-  втручання третіх осіб; учасник розмови не є "третьою особою" в сенсі
-  цього захисту.
-- **КК України, Стаття 163** ("порушення таємниці... телефонних розмов")
-  таргетує несанкціоновану інтерсепцію зі сторони, не запис учасником
-  власної розмови.
-- **ЗУ "Про захист персональних даних" (№ 2297-VI), Стаття 25**
-  ("Обмеження дії цього Закону") виключає з-під регулювання обробку даних,
-  що здійснюється фізичною особою виключно для особистих чи побутових
-  потреб (household exemption, аналог GDPR Art. 2(2)(c)).
+- **乌克兰宪法第 31 条** 保障通信秘密免受第三方干涉；通话参与者
+  在此保护意义上不属于"第三方"。
+- **乌克兰刑法典第 163 条**（"侵犯……电话通话秘密"）
+  针对的是未经授权的第三方拦截，而非参与者录制自己的通话。
+- **乌克兰《个人数据保护法》（第 2297-VI 号）第 25 条**
+  （"本法适用范围的限制"）将个人纯为个人或家庭需求处理数据的行为
+  排除在监管之外（家庭豁免，类似 GDPR 第 2(2)(c) 条）。
 
-Тобто **відсутність beep у cally — це відповідність українському
-законодавству, а не обхід regulatory вимоги** (на відміну від США/EU,
-де обов'язковий disclosure beep у нативному рекордері Google зашитий у
-Phone app саме для compliance з all-party consent юрисдикціями).
+因此 **Cally 不包含提示音是符合乌克兰法律，而非规避监管要求**
+（与美国/欧盟不同，后者的多方同意司法管辖区要求 Google
+原生录音器在 Phone 应用中内置强制披露提示音）。
 
-> **Caveat:** запис ≠ розповсюдження. Публікація запису без згоди
-> співрозмовника обмежена **ЦК Стаття 306 ч. 2** (право на таємницю
-> кореспонденції — листи, телефонні розмови та інша кореспонденція можуть
-> використовуватись, зокрема шляхом опублікування, лише за згодою сторін),
-> **ЦК Стаття 301** (право на особисте життя), і можливими defamation-позовами.
-> Інструмент для **особистого використання**; за публікацію відповідає
-> користувач.
+> **注意：** 录制 ≠ 传播。未经对方同意发布录音受到
+> **民法典第 306 条第 2 款**（通信秘密权——信件、电话通话及其他通信
+> 仅在各方同意下方可使用，包括公开发布）、
+> **民法典第 301 条**（个人生活权）以及可能的诽谤诉讼的限制。
+> 本工具仅供**个人使用**；发布责任由用户承担。
 >
-> Це загальний огляд, не юридична консультація. Для критичних ситуацій
-> (журналістика, корпоративні розслідування, докази у складних справах) —
-> до українського адвоката, що спеціалізується на information law.
+> 以上为一般性概述，非法律建议。对于关键情况
+> （新闻调查、企业调查、复杂案件中的证据）——
+> 请咨询专门从事信息法的乌克兰律师。
 
-### Користувачам поза Україною
+### 乌克兰以外的用户
 
-Цей юридичний огляд стосується **виключно української юрисдикції**.
-Юрисдикції розкладаються на **три рівні режиму згоди** — від найменш до
-найбільш суворого. Знайди свою — і дій відповідно.
+本法律概述**仅适用于乌克兰司法管辖区**。
+各司法管辖区分为**三个同意级别**——从最宽松到最严格。
+请找到自己所在的级别——并据此行事。
 
-#### Рівень 1 — Без сповіщення (one-party consent)
+#### 级别 1 — 无需通知（一方同意）
 
-Учасник розмови може записувати без попередження співрозмовника. Власна
-згода = достатня згода.
+通话参与者可在不通知对方的情况下录音。自己的同意 = 充分的同意。
 
-- **Україна** (як у секції вище)
-- **США** — federal Wiretap Act (18 U.S.C. § 2511) + ~38 штатів
-- **Велика Британія** — RIPA 2000 (для учасника)
-- **Канада** — Criminal Code § 184(2)(a) (one-party at federal level)
-- **Австралія** — federal Telecommunications (Interception) Act
-- **Польща** — для учасника розмови
-- Більшість Латинської Америки
+- **乌克兰**（如上节所述）
+- **美国** — 联邦《窃听法》(18 U.S.C. § 2511) + 约 38 个州
+- **英国** — RIPA 2000（参与者）
+- **加拿大** — 《刑法典》§ 184(2)(a)（联邦层面的一方同意）
+- **澳大利亚** — 联邦《电信（拦截）法》
+- **波兰** — 通话参与者
+- 大多数拉丁美洲国家
 
-#### Рівень 2 — Достатньо попередити (all-party + implied consent)
+#### 级别 2 — 通知即足够（多方同意 + 默示同意）
 
-Потрібно сповістити співрозмовника на старті розмови. Якщо він почув
-попередження і продовжив розмову — це **implied consent**, запис
-легальний. Доктрина закріплена прецедентним правом за десятки років.
+需要在通话开始时通知对方。如果对方听到通知后继续通话——
+这构成**默示同意**，录音合法。该原则已由数十年的判例法确立。
 
-- **~11 штатів США**: Каліфорнія (CA Penal Code § 632), Флорида,
-  Іллінойс, Меріленд, Массачусетс, Монтана, Невада, Нью-Гемпшир,
-  Пенсильванія, Вашингтон, Коннектікут
-- Комерційні контексти у частині EU (типовий hotline-disclaimer
-  «дзвінок може бути записаний у цілях якості» — це той самий механізм)
+- **约 11 个美国州**：加利福尼亚（CA Penal Code § 632）、佛罗里达、
+  伊利诺伊、马里兰、马萨诸塞、蒙大拿、内华达、新罕布什尔、
+  宾夕法尼亚、华盛顿、康涅狄格
+- 部分欧盟国家的商业场景（典型的客服热线声明
+  "本次通话可能被录音用于质量目的"——正是同一机制）
 
-У цих юрисдикціях усне попередження на старті розмови («попереджаю, що
-веду запис цієї розмови») — юридично достатньо.
+在这些司法管辖区，通话开始时的口头通知（"我提醒您，
+本次通话正在录音"）法律上已足够。
 
-#### Рівень 3 — Заборонено навіть з попередженням (explicit consent)
+#### 级别 3 — 即使通知也禁止（需要明确同意）
 
-Просте попередження не легалізує запис. Потрібна **явна інформована
-згода** кожного учасника — у деяких випадках письмова. Без неї — стаття
-кримінального кодексу.
+简单的通知不能使录音合法化。需要每个参与者的**明确的知情同意**——
+在某些情况下需要书面形式。否则——面临刑事指控。
 
-- **Німеччина** — § 201 StGB *Vertraulichkeit des Wortes*: до **3 років
-  в'язниці** за запис «непублічно мовленого слова» без явного дозволу.
-  Implied consent у приватних розмовах німецькі суди не визнають.
-- **Австрія** — § 120 StGB *Missbrauch von Tonaufnahme- oder Abhörgeräten*
-  (аналогічний режим)
-- **Бельгія** — Loi sur les communications électroniques + кримінальне
-  право: явна згода обов'язкова, у багатьох випадках письмова
-- Деякі юрисдикції з суворим privacy-режимом (UAE, Саудівська Аравія) —
-  практика жорсткіша за букву закону, ризик кримінального переслідування
-  високий
+- **德国** — § 201 StGB *Vertraulichkeit des Wortes*：未经明确许可录制
+  "非公开口头言论"最高可判处**3 年监禁**。德国法院不承认
+  私人通话中的默示同意。
+- **奥地利** — § 120 StGB *Missbrauch von Tonaufnahme- oder Abhörgeräten*
+  （类似制度）
+- **比利时** — 《电子通信法》+ 刑法：明确同意是强制性的，
+  许多情况下需要书面形式
+- 一些隐私制度严格的司法管辖区（阿联酋、沙特阿拉伯）——
+  实际执法比法律条文更严厉，刑事追诉风险高
 
-**У країнах рівня 3 cally використовувати не варто без явного «так,
-згоден» від співрозмовника** — і запис без такої згоди є кримінальним
-злочином, навіть якщо ти учасник розмови, навіть для особистого архіву.
+**在第 3 级国家，若无对方明确的"是的，我同意"，**
+**不应使用 Cally**——未经同意的录音构成刑事犯罪，
+即使你是通话参与者，即使是用于个人存档。
 
-#### GDPR — додатковий шар (EU)
+#### GDPR — 附加层（欧盟）
 
-Поверх кримінального права у EU діє data-protection framework:
+在刑事法律之上，欧盟还有数据保护框架：
 
-- **Особистий архів** для household-потреб виведений з-під GDPR
-  (Art. 2(2)(c), household exemption) — для рівня 1 це знімає GDPR-частину
-  питання. Але кримінальне право (як у DE/AT/BE) діє незалежно.
-- **Транскрипція через cloud STT**, поділитись записом, переслати
-  колезі, архівувати в комерційних цілях — household exemption відпадає,
-  потрібна legal basis (Art. 6 GDPR).
+- **个人存档**用于家庭需求被排除在 GDPR 之外
+  （第 2(2)(c) 条，家庭豁免）——对第 1 级国家，这消除了 GDPR 部分的问题。
+  但刑事法律（如 DE/AT/BE）独立适用。
+- **通过云端 STT 转录**、分享录音、转发给同事、
+  用于商业目的存档——家庭豁免不再适用，需要合法依据（GDPR 第 6 条）。
 
-#### Технічна неможливість beep'а зі сторони cally
+#### Cally 技术层面上无法实现提示音
 
-cally **не вміє** програти beep або голосове announcement у вухо
-співрозмовнику — це platform-privileged операція. Native Pixel Phone з
-Android 14+ робить це через прямий API до Audio HAL, який недоступний
-третім додаткам навіть з shell-UID bypass'ом через Shizuku. Публічного
-SDK API для запису в voice call uplink не існує, а Acoustic Echo
-Canceller топить «beep-через-speaker» хаки.
+Cally **无法**将提示音或语音公告播放到对方听筒中——
+这是平台特权操作。原生 Pixel Phone（Android 14+）
+通过直接调用 Audio HAL 的私有 API 实现此功能，第三方应用
+即使通过 Shizuku 绕过 shell-UID 也无法访问。
+不存在写入语音通话上行链路的公开 SDK API，
+而回声消除器 (AEC) 会使"通过扬声器播放提示音"的取巧方法失效。
 
-Що це означає на практиці:
+实际含义：
 
-- **Рівень 1**: cally закриває вимогу повністю (її просто немає).
-- **Рівень 2**: усне попередження на старті розмови — workaround який
-  юридично спрацьовує (формує implied consent).
-- **Рівень 3**: усне попередження юридично недостатнє. cally **не
-  закриває цю вимогу технічно**, і workaround'у з боку додатку немає —
-  потрібна явна згода співрозмовника, яку ти отримуєш окремим каналом
-  до старту запису.
+- **级别 1**：Cally 完全满足要求（根本没有此要求）。
+- **级别 2**：通话开始时的口头通知——法律上有效的变通方案
+  （构成默示同意）。
+- **级别 3**：口头通知法律上不足够。Cally **技术上无法满足此要求**，
+  应用端没有变通方案——需要对方的明确同意，
+  你需要在录音开始前通过单独渠道获取。
 
-#### Резюме
+#### 总结
 
-| Дія | Рівень 1 | Рівень 2 | Рівень 3 |
+| 操作 | 级别 1 | 级别 2 | 级别 3 |
 |---|---|---|---|
-| Запис власної розмови без попередження | дозволено | заборонено | заборонено |
-| Запис після усного попередження | дозволено | дозволено (implied consent) | заборонено |
-| Запис з явною згодою всіх учасників | дозволено | дозволено | дозволено |
-| Поділитись записом без згоди | privacy / defamation ризик | заборонено | заборонено |
+| 未经通知录制自己的通话 | 允许 | 禁止 | 禁止 |
+| 口头通知后录制 | 允许 | 允许（默示同意） | 禁止 |
+| 所有参与者明确同意后录制 | 允许 | 允许 | 允许 |
+| 未经同意分享录音 | 隐私/诽谤风险 | 禁止 | 禁止 |
 
-**Перш ніж використовувати cally за межами України — перевір свій
-локальний закон.** Особливо обережно: розмова зі співрозмовником у
-рівнях 2/3; запис у корпоративному / журналістському / судовому
-контексті; обробка даних повторно (транскрипція, share, архів) у EU.
+**在乌克兰境外使用 Cally 之前——请查阅当地法律。**
+特别注意：与级别 2/3 国家的对方通话；
+在企业/新闻/司法场景中录音；
+在欧盟进行二次数据处理（转录、分享、存档）。
 
-## Стек
+## 技术栈
 
-| Шар | Технологія |
+| 层次 | 技术 |
 |---|---|
-| UI | Jetpack Compose · Material 3 Expressive (`material3 1.4.0-beta01`) · Material You dynamic colors |
-| Build | AGP 8.8 · Kotlin 2.1.20 (K2) · KSP · Gradle 8.11 · JDK 21 toolchain |
-| Persistence | Room 2.7 (call metadata) · DataStore Preferences (settings) |
-| IPC | AIDL 1-way Binder · Shizuku 13.1.5 (UserService daemon, `daemon=true`) |
-| Recording | shell-UID `app_process` через Shizuku · `WrappedShellContext` (impersonate `com.android.shell`) · `AudioRecord.Builder().setContext(...)` на main Looper · 5-step fallback ladder з live-audibility verification |
-| Encoder | AAC у MP4 (`MediaCodec` + `MediaMuxer`, default) або WAV (RIFF, опційно) · per-track |
-| FGS | `type=specialUse` (mic access живе у shell-процесі) + invisible 1×1 overlay як bypass для Android 14+ "FGS from background" |
-| Network | INTERNET permission лише для **опціональної** cloud-транскрипції через user-configured OpenAI-compatible chat-completions endpoint з підтримкою `input_audio` content parts (default: OpenRouter+Gemini Flash; self-hosted — детальніше у [Безпека і приватність](#безпека-і-приватність)). Транскрипція вимикається повністю якщо не введено API ключ. Сам запис аудіо ніколи не торкається мережі. Жодного Firebase/Crashlytics/Sentry/analytics. |
+| UI | Jetpack Compose · Material 3 Expressive (`material3 1.4.0-beta01`) · Material You 动态色彩 |
+| 构建 | AGP 8.8 · Kotlin 2.1.20 (K2) · KSP · Gradle 8.11 · JDK 21 toolchain |
+| 持久化 | Room 2.7（通话元数据）· DataStore Preferences（设置） |
+| IPC | AIDL 单向 Binder · Shizuku 13.1.5（UserService 守护进程，`daemon=true`） |
+| 录音 | 通过 Shizuku 的 shell-UID `app_process` · `WrappedShellContext`（伪装 `com.android.shell`）· 在主 Looper 上调用 `AudioRecord.Builder().setContext(...)` · 5 步回退链 + 实时可听性验证 |
+| 编码 | AAC 封装 MP4（`MediaCodec` + `MediaMuxer`，默认）或 WAV（RIFF，可选）· 每轨独立 |
+| FGS | `type=specialUse`（麦克风访问在 shell 进程中）+ 不可见 1×1 overlay 作为 Android 14+ "后台启动 FGS" 的绕过方案 |
+| 网络 | INTERNET 权限**仅用于可选的**云端转录，通过用户配置的 OpenAI 兼容 chat-completions 端点（支持 `input_audio` content parts，默认：OpenRouter+Gemini Flash；自托管——详见[安全与隐私](#安全与隐私)）。如未输入 API 密钥，转录功能完全关闭。录音本身从不接触网络。无任何 Firebase/Crashlytics/Sentry/analytics。 |
 
-`minSdk = 31` (Pixel 6+ запускався на Android 12), `targetSdk = compileSdk = 36` (Android 16).
+`minSdk = 31`（Pixel 6+ 运行 Android 12），`targetSdk = compileSdk = 36`（Android 16）。
 
-## Як працює обхід
+## 绕过原理
 
-Стек із восьми шарів, кожен знімає один конкретний gate
-AudioFlinger / framework. Перші п'ять — це **публічна техніка з
-[scrcpy 2.0](https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/Workarounds.java)**
-(yume-chan, березень 2023), де вона використовується для дзеркалення
-аудіо-output (`REMOTE_SUBMIX`). cally **переносить її на telephony
-audio sources** (`VOICE_UPLINK/DOWNLINK/CALL`) — публічного опису саме
-такого застосування ми не знайшли. Шари 6-8 (live-audibility ladder,
-FGS bypass комбінація, signing pin) — інженерія цього проекту,
-відповідь на конкретні проблеми telephony-recording (Samsung
-uplink-silence, mic preamp drift на Pixel 10, daemon attack-surface).
+八层技术栈，每层解除 AudioFlinger / framework 的一个特定门控。
+前五层是来自
+[scrcpy 2.0](https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/Workarounds.java)
+的**公开技术**（yume-chan，2023 年 3 月），
+在该项目中用于镜像音频输出（`REMOTE_SUBMIX`）。Cally
+**将其应用于电话音频源**（`VOICE_UPLINK/DOWNLINK/CALL`）——
+我们未找到此特定应用的公开描述。第 6-8 层（实时可听性回退链、
+FGS 绕过组合、签名锁定）是本项目的工程成果，
+针对通话录音的具体问题（三星上行静音、
+Pixel 10 麦克风前置放大器漂移、守护进程攻击面）。
 
-### 1. Виконуємось у shell-UID (UID 2000)
+### 1. 以 shell-UID (UID 2000) 运行
 
-Shizuku спавнить наш `RecorderService` всередині свого `app_process`
-(UID 2000 = `shell`). У звичайному додатковому процесі `VOICE_UPLINK` /
-`VOICE_DOWNLINK` / `VOICE_CALL` блокуються AudioFlinger, але shell — це
-системний principal з `signature`-level дозволами. Це необхідна, але
-**недостатня** умова: просто запуск у UID 2000 не дає аудіо, бо AudioFlinger
-дивиться не лише на UID, а й на пакет.
+Shizuku 在其 `app_process`（UID 2000 = `shell`）中启动我们的 `RecorderService`。
+在普通应用进程中，`VOICE_UPLINK` / `VOICE_DOWNLINK` / `VOICE_CALL`
+会被 AudioFlinger 阻止，但 shell 是持有 `signature` 级权限的系统主体。
+这是必要条件，但**不充分**：仅在 UID 2000 下运行并不能获得音频，
+因为 AudioFlinger 不仅检查 UID，还检查包名。
 
-### 2. Атрибуція контексту як `com.android.shell`
+### 2. 上下文归因为 `com.android.shell`
 
-`userservice/WrappedShellContext.kt` обгортає системний Context так, що
-identity-методи (`getOpPackageName()`, `getPackageName()`,
-`getAttributionSource()`) повертають `com.android.shell`. Цей пакет реально
-існує у package DB з UID 2000 — тим самим UID, у якому виконується наш
-shell-процес. AudioFlinger gate `createFromTrustedUidNoPackage` валідує
-комбінацію `(uid=2000, pkg="com.android.shell")` проти package DB і
-пропускає, оскільки ця пара — справжня `(uid, pkg)` комбінація для
-shell-процесу. Це не fake credentials — це валідна attribution для
-процесу, який реально виконується під UID shell.
+`userservice/WrappedShellContext.kt` 包装系统 Context，
+使身份方法（`getOpPackageName()`、`getPackageName()`、
+`getAttributionSource()`）返回 `com.android.shell`。
+该包真实存在于 package DB 中，UID 为 2000——与我们的 shell 进程
+运行的 UID 相同。AudioFlinger 的门控 `createFromTrustedUidNoPackage`
+验证 `(uid=2000, pkg="com.android.shell")` 组合与 package DB 的匹配并放行，
+因为这对 `(uid, pkg)` 组合是 shell 进程的真实组合。
+这不是伪造的凭据——这是运行在 shell UID 下的进程的有效归因。
 
-> Раніше пробували "trusted-UID без пакета" — `AttributionSource.Builder(2000)`
-> без `setPackageName(...)`. Не працює: gate валідує пакет проти DB,
-> а порожній пакет fail-сить.
+> 此前尝试过"受信任的 UID 无包名"——`AttributionSource.Builder(2000)`
+> 不带 `setPackageName(...)`。无效：门控会将包名与 DB 验证，
+> 空包名无法通过。
 
-### 3. Патчимо ActivityThread рефлексією
+### 3. 通过反射修补 ActivityThread
 
-Просто override identity-методів Context недостатньо — AudioFlinger
-доходить до identity caller-а через ланцюг
+仅覆盖 Context 的身份方法不够——AudioFlinger
+通过以下链路溯源调用者身份：
 `AudioRecord.mAttributionSource ← Context.getAttributionSource() ←
 Application.getAttributionSource() ← ActivityThread.currentApplication() ←
-ActivityThread.mInitialApplication ← AppBindData.appInfo`.
-Якщо хоч одна ланка повертає реальний UID/пакет, gate провалиться. Тому
-патчимо приватні поля `android.app.ActivityThread`:
+ActivityThread.mInitialApplication ← AppBindData.appInfo`。
+如果链中任何一个环节返回真实的 UID/包名，门控就会失败。
+因此我们修补 `android.app.ActivityThread` 的私有字段：
 
-| Поле | Що даємо | Навіщо |
+| 字段 | 设置值 | 目的 |
 | --- | --- | --- |
-| `mSystemThread` | `true` | AudioFlinger та AppOps трактують system-process як pre-authorised, пропускають per-package перевірку |
-| `mInitialApplication` | fake `Application`, прив'язаний до `WrappedShellContext` | `currentApplication()` повертає нашу Application |
-| `sCurrentActivityThread` | поточний AT | деякі шляхи дістаються AT напряму, оминаючи `currentApplication()` |
-| `mBoundApplication.appInfo` | `ApplicationInfo{ packageName="com.android.shell", uid=2000 }` | альтернативний шлях, яким AudioFlinger іноді резолвить пакет |
+| `mSystemThread` | `true` | AudioFlinger 和 AppOps 将系统进程视为预授权，跳过逐包检查 |
+| `mInitialApplication` | 伪造的 `Application`，绑定到 `WrappedShellContext` | `currentApplication()` 返回我们的 Application |
+| `sCurrentActivityThread` | 当前的 AT | 某些路径直接获取 AT，绕过 `currentApplication()` |
+| `mBoundApplication.appInfo` | `ApplicationInfo{ packageName="com.android.shell", uid=2000 }` | AudioFlinger 有时通过替代路径解析包名 |
 
-`org.lsposed.hiddenapibypass.HiddenApiBypass` знімає Android-P+ hidden-API
-обмеження, без чого reflection на ActivityThread кидає
-`NoSuchFieldException`.
+`org.lsposed.hiddenapibypass.HiddenApiBypass` 解除 Android-P+ 的 hidden-API
+限制，否则对 ActivityThread 的反射会抛出
+`NoSuchFieldException`。
 
-### 4. AudioRecord ctor — обов'язково на main Looper
+### 4. AudioRecord 构造——必须在主 Looper 上
 
-AudioFlinger AppOps `RECORD_AUDIO` check читає **thread-local hooks**, які
-у Binder-потоці shell-процесу порожні. Тому `AudioRecord.Builder().build()`
-ми кидаємо на головний Looper процесу через `Handler.post {...}` +
-`CountDownLatch.await(2s)`. На головному потоці ActivityThread setup-ить
-правильні thread-locals, gate бачить нашу wrapped identity і ctor
-повертає `STATE_INITIALIZED`. Реалізація — `AudioRecorderJob.kt:83`.
+AudioFlinger 的 AppOps `RECORD_AUDIO` 检查读取 **线程本地的 hook**，
+在 shell 进程的 Binder 线程中这些 hook 为空。因此我们通过
+`Handler.post {...}` + `CountDownLatch.await(2s)` 将
+`AudioRecord.Builder().build()` 投递到进程的主 Looper。
+在主线程上，ActivityThread 设置了正确的线程本地变量，
+门控看到我们包装后的身份，构造函数返回 `STATE_INITIALIZED`。
+实现见 `AudioRecorderJob.kt:83`。
 
-### 5. Builder API з `.setContext(WrappedShellContext)`
+### 5. Builder API + `.setContext(WrappedShellContext)`
 
-Legacy 5-аргументний AudioRecord ctor читає AttributionSource зі статиків
-ActivityThread напряму — наш Context там не бачать. **Тільки**
-`AudioRecord.Builder().setContext(wrappedContext).build()` (API 31+) тягне
-attribution з переданого Context. Тому `minSdk=31` — це не лише через
-Material 3, це **архітектурне обмеження обхіду**.
+传统的 5 参数 AudioRecord 构造函数直接从 ActivityThread 静态变量
+读取 AttributionSource——我们的 Context 无法被看到。**只有**
+`AudioRecord.Builder().setContext(wrappedContext).build()`（API 31+）
+从传入的 Context 中获取 attribution。因此 `minSdk=31`
+不仅是 Material 3 的要求，更是**绕过方案的结构性约束**。
 
-### 6. Live-audibility verification + 5-step fallback ladder
+### 6. 实时可听性验证 + 5 步回退链
 
-Ідентифікація — необхідна, але не достатня: на різних HAL модем іноді
-повертає тишу, навіть коли AudioRecord ОК. `RecorderController.kt` пробує
-стратегії в такому порядку:
+身份验证是必要的，但不充分：在不同 HAL 上，即使 AudioRecord 成功初始化，
+调制解调器有时也会返回静音。`RecorderController.kt` 按以下顺序尝试策略：
 
-1. **DualUplinkDownlink** — `VOICE_UPLINK` + `VOICE_DOWNLINK` паралельно (дві mono доріжки, ідеал для playback з незалежним balance).
-2. **DualMicDownlink** — `MIC` + `VOICE_DOWNLINK` (Samsung-friendly: модем часто блокує UPLINK, а MIC bypass).
-3. **SingleVoiceCallStereo** — `VOICE_CALL` stereo (L=uplink, R=downlink).
-4. **SingleVoiceCallMono** — `VOICE_CALL` mono (mix-down від HAL).
-5. **SingleMic** — `MIC` only (last resort, через гучномовець, гарантовано працює).
+1. **DualUplinkDownlink** — `VOICE_UPLINK` + `VOICE_DOWNLINK` 并行（两条单声道轨道，回放时可独立调节平衡，理想方案）。
+2. **DualMicDownlink** — `MIC` + `VOICE_DOWNLINK`（三星友好：调制解调器常阻止 UPLINK，MIC 可绕过）。
+3. **SingleVoiceCallStereo** — `VOICE_CALL` 立体声（L=上行，R=下行）。
+4. **SingleVoiceCallMono** — `VOICE_CALL` 单声道（HAL 混音）。
+5. **SingleMic** — 仅 `MIC`（最后手段，通过扬声器，保证可用）。
 
-Кожна спроба:
+每次尝试：
 
-- ctor → якщо `STATE_UNINITIALIZED`, в `knownFailedInit` назавжди для цього `Build.FINGERPRINT`.
-- запис → 5-секундне вікно, RMS metering обох доріжок з **адаптивним noise floor** (`AudioLevelMeter.calibratedFloor` — медіана першого ~500 мс семплів). Аудіо "чутне" iff `lastRms > calibratedFloor + AUDIBLE_DELTA (0.008)` — поріг навчається per-stream замість фіксованого global константа, тож працює коректно і на Pixel 10 (mic drift ≈ -50 dBFS), і на Samsung з активним NS chip.
-- "3 страйки" перед blacklist (Samsung модем іноді відкриває path не зразу — одна мовчазна спроба ≠ перманентний gap).
-- успіх → кешуємо в `preferredStrategy`, наступний дзвінок стартує одразу з неї.
+- 构造 → 若 `STATE_UNINITIALIZED`，永久记入 `knownFailedInit`（按 `Build.FINGERPRINT` 区分）。
+- 录音 → 5 秒窗口，对两轨进行 RMS 测量，使用**自适应噪底**（`AudioLevelMeter.calibratedFloor`——前约 500 ms 样本的中位数）。音频"可听"条件为 `lastRms > calibratedFloor + AUDIBLE_DELTA (0.008)`——阈值根据每路流动态学习，而非固定的全局常量，因此在 Pixel 10（mic 漂移约 -50 dBFS）和带有主动降噪芯片的三星设备上均能正确工作。
+- 列入黑名单前给予"3 次机会"（三星调制解调器有时不会立即打开音频路径——一次静音尝试 ≠ 永久不可用）。
+- 成功 → 缓存到 `preferredStrategy`，下次通话直接使用。
 
-При завершенні дзвінка `downgradeIfHalfSilent()` дивиться на `maxRms`
-кожної доріжки і скидає тиху сторону (на Samsung часто UPLINK = тиша,
-DOWNLINK через sidetone містить обидва голоси — нема сенсу зберігати
-2 хв нулів).
+通话结束时，`downgradeIfHalfSilent()` 检查每轨的 `maxRms`
+并丢弃静音的一侧（三星上通常是 UPLINK = 静音，DOWNLINK 通过侧音包含双方声音——
+没必要保存 2 分钟的零值数据）。
 
-Кеш ключований на `Build.FINGERPRINT` → OS update auto-invalidate.
+缓存键基于 `Build.FINGERPRINT` → 系统更新自动失效。
 
-### 7. FGS-from-background bypass (Android 14+)
+### 7. 后台启动 FGS 的绕过方案 (Android 14+)
 
-`telephony.CallStateReceiver` (manifest broadcast) не може стартанути FGS
-напряму — Android 14+ блокує це з `PROCESS_STATE_RECEIVER`. Замість
-`type=microphone` (який був би жорсткіше gated) ми оголошуємо
-`type=specialUse` — реальний mic access живе в Shizuku shell-процесі, не
-в нас. Перед `startForegroundService(...)` короткочасно (3 с) додаємо
-1×1 px невидимий overlay (`telephony/OverlayTrick.kt`) через
-`SYSTEM_ALERT_WINDOW` — система тимчасово піднімає процес у
-foreground-state, чого вистачає, щоб FGS легально стартанув. Після цього
-overlay прибираємо; FGS вже живий своїм правом.
+`telephony.CallStateReceiver`（manifest 广播）无法直接启动 FGS——
+Android 14+ 以 `PROCESS_STATE_RECEIVER` 阻止此操作。
+我们不使用 `type=microphone`（会受到更严格的门控），
+而是声明 `type=specialUse`——实际的麦克风访问在 Shizuku shell 进程中，
+不在我们的进程中。在 `startForegroundService(...)` 之前，
+短暂（3 秒）通过 `SYSTEM_ALERT_WINDOW` 添加一个 1×1 px 不可见 overlay
+（`telephony/OverlayTrick.kt`）——系统暂时将进程提升到前台状态，
+足以让 FGS 合法启动。之后移除 overlay；FGS 已凭借自身权限运行。
 
-`accessibility/CallrecAccessibilityService.kt` — порожній stub, оголошений
-у маніфесті як **опційний** fallback для агресивних OEM (Xiaomi/MIUI).
-BIND_ACCESSIBILITY_SERVICE — теж exemption з FGS-обмеження. Користувач
-вмикає його тільки якщо overlay-trick не спрацьовує.
+`accessibility/CallrecAccessibilityService.kt` — 空 stub，
+在 manifest 中声明为**可选**的后备方案，用于激进的 OEM（小米/MIUI）。
+BIND_ACCESSIBILITY_SERVICE 也是 FGS 限制的豁免项。
+用户仅在 overlay-trick 无效时才启用它。
 
-### 8. Захист від чужих Shizuku-permitted додатків
+### 8. 防范其他 Shizuku 授权应用
 
-`daemon=true` означає, що privileged-процес живе після нашого app. Будь-який
-інший пакет з дозволом Shizuku теоретично може enumerate Binder-и і
-покликати наш `IRecorderService`. `RecorderService.verifyCaller()` на
-**кожному** AIDL виклику перевіряє:
+`daemon=true` 意味着特权进程在我们的应用退出后仍然存活。任何其他
+具有 Shizuku 权限的包理论上可以枚举 Binder 并
+调用我们的 `IRecorderService`。`RecorderService.verifyCaller()`
+在**每次** AIDL 调用时验证：
 
-- `Binder.getCallingUid()` → пакети → має містити `dev.lyo.callrec[.<suffix>]`.
-- SHA-256 release-cert підпису → проти константи, запеченої в userservice
-  модуль на build-time через Gradle property `callrec.signingSha256`.
+- `Binder.getCallingUid()` → 包列表 → 必须包含 `dev.lyo.callrec[.<suffix>]`。
+- Release 证书的 SHA-256 签名 → 与编译时通过 Gradle 属性
+  `callrec.signingSha256` 烘焙到 userservice 模块的常量对比。
 
-У debug-білді signing pin порожній — перевірка пропускається.
+在 debug 构建中，签名锁定为空——跳过验证。
 
-## Стійкість і майбутнє
+## 持久性与未来展望
 
-Цей обхід — **не вічний і вже під загрозою**. Чесна оцінка:
+此绕过方案**并非永久有效，已面临威胁**。客观评估：
 
-**Історичний контекст.** Google систематично закриває non-root шляхи
-запису дзвінків кожні 2-3 роки: Android 6 → 9 (VOICE_CALL з public API),
-Android 10 (signature|privileged для VOICE_*), Android 11/12 (заборона
-accessibility-based recording — вбило ACR Phone), Android 15 (нові
-обмеження `MediaRecorder` під час дзвінка). Тренд лінійний.
+**历史背景。** Google 每 2-3 年系统性地关闭非 root 的通话录音途径：
+Android 6 → 9（公开 API 的 VOICE_CALL）、
+Android 10（VOICE_* 需要 signature|privileged 权限）、
+Android 11/12（禁止基于无障碍服务的录音——导致 ACR Phone 失效）、
+Android 15（通话期间对 `MediaRecorder` 的新限制）。趋势是线性的。
 
-**Свіжий сигнал тривоги.** У травні 2025 на Android 16 QPR1 Beta зламався
-аудіо-захоплення в [scrcpy #6113](https://github.com/Genymobile/scrcpy/issues/6113)
-— той самий механізм (`FakePackageNameContext` + `AudioRecord.Builder`),
-що використовує cally. Це ще не цілеспрямована атака на call-recorders,
-але збоковий ефект змін в audio framework, який нас зачіпає в лоб. На
-stable Android 16 (розкотиться на Pixel восени 2025) cally може
-перестати працювати без оновлення.
+**最新的警报信号。** 2025 年 5 月，Android 16 QPR1 Beta 中
+[scrcpy #6113](https://github.com/Genymobile/scrcpy/issues/6113) 的音频捕获失效——
+与 Cally 使用的机制完全相同（`FakePackageNameContext` + `AudioRecord.Builder`）。
+这尚不是针对通话录音应用的蓄意攻击，
+而是音频框架变更的附带效应，直接影响到我们。
+在稳定版 Android 16（2025 年秋季推送至 Pixel）上，
+Cally 可能不经更新就无法工作。
 
-**Політичний контекст (двоїстий).** У листопаді 2025 Google глобально
-розкотив **native call recording** через Phone by Google для Pixel 6+ на
-Android 14+. З обов'язковим disclosure beep, який *"cannot be bypassed"*.
-Це дає Google регуляторну позицію проти неофіційних рекордерів у
-all-party consent юрисдикціях (США/EU): "у нас є compliant рішення;
-обходи без consent — навмисне порушення".
+**政治背景（双重性）。** 2025 年 11 月，Google 通过 Phone by Google
+向 Android 14+ 的 Pixel 6+ 全球推送了**原生通话录音**。
+该功能带有强制性披露提示音，*"不可绕过"*。
+这使 Google 在多方同意司法管辖区（美国/欧盟）获得了
+针对非官方录音应用的监管立场："我们已有合规的解决方案；
+无同意的绕过方案是蓄意违规。"
 
-**Для України ця позиція не працює** — native рішення в UA недоступне,
-beep юридично не вимагається (one-party consent), Pixel неможливо
-region-switch-ити. Тобто Google не має ground для регуляторного тиску
-саме на UA-targeted інструмент. Технічний ризик (collateral breakage
-типу scrcpy #6113) лишається таким самим, але регуляторна/політична
-loud-loud-вилка проти cally у нашому контексті значно слабша, ніж
-проти аналогів у США/EU.
+**对乌克兰而言，这一立场不成立**——原生方案在乌克兰不可用，
+提示音在法律上不需要（一方同意），Pixel 无法切换地区。
+即 Google 没有针对乌克兰特定工具的监管压力依据。
+技术风险（如 scrcpy #6113 的附带破坏）依然存在，
+但在我们的场景中，针对 Cally 的监管/政治 loud-loud 攻击向量
+远弱于针对美国/欧盟的类似应用。
 
-**Найдешевша технічна фікса, на яку очікуємо:** AudioPolicyManager додає
-signature check для VOICE_UPLINK/DOWNLINK/CALL — gate валідуватиме не
-тільки (uid, package), а й що APK підписаний framework cert. Це ламає
-тільки запис дзвінків через impersonation, не зачіпаючи scrcpy чи інші
-legitimate debug-tools — тобто Google може зробити це без community
-backlash. Один рядок коду; саме цього вектора варто очікувати найбільше.
+**我们预期的最廉价技术修复：** AudioPolicyManager 为
+VOICE_UPLINK/DOWNLINK/CALL 添加签名检查——门控不仅验证
+(uid, package)，还要求 APK 使用框架证书签名。这将破坏
+通过身份伪装的通话录音，但不影响 scrcpy 或其他合法的调试工具——
+因此 Google 可以在没有社区反弹的情况下实施。一行代码；
+这是最需要警惕的攻击向量。
 
-**Реалістичний горизонт стабільності:** 12-18 місяців на стоковому Pixel
-з оновленнями, плюс-мінус регуляторний цикл. Після кожного major Android
-release вмикається 5-step fallback ladder — якщо одна стратегія
-"погасла", автоматично пробуються інші. Якщо всі п'ять погасли — додаток
-чесно показує помилку, не записує тишу мовчки.
+**现实的稳定期预期：** 在持续更新的原生 Pixel 上为 12-18 个月，
+加减一个监管周期。每次 Android 大版本发布后，
+5 步回退链会被激活——如果一种策略"失效"，
+会自动尝试其他策略。如果所有五种策略都失效——
+应用会诚实地显示错误，不会无声地录制空白音频。
 
-**Ранній warning sign:** scrcpy 3.x release notes. Якщо yume-chan напише
-"FakePackageNameContext no longer works on Android X, audio capture
-removed" — це ваш 6-місячний попереджувальний дзвінок. Підпишіться на
-[scrcpy releases](https://github.com/Genymobile/scrcpy/releases).
+**早期预警信号：** scrcpy 3.x 的 release notes。
+如果 yume-chan 写道 "FakePackageNameContext no longer works on Android X,
+audio capture removed"——这是你的 6 个月预警铃。
+请订阅 [scrcpy releases](https://github.com/Genymobile/scrcpy/releases)。
 
-**Що НЕ обіцяємо:** "вічно працюючий запис дзвінків на Pixel". Якщо
-бачите такі обіцянки — або це маркетинг, або небезпечні техніки (root,
-custom recovery, фіктивні system apps).
+**我们不承诺：** "Pixel 上永久可用的通话录音"。如果你看到此类承诺——
+要么是营销，要么是使用了危险技术（root、自定义 recovery、伪造系统应用）。
 
-## Структура
+## 项目结构
 
 ```text
 callrec/
-├── settings.gradle.kts                 # Gradle multi-module config
-├── build.gradle.kts                    # root, plugin aliases only
-├── gradle/libs.versions.toml           # version catalog (single source of truth)
-├── aidl/                               # IRecorderService AIDL contract (no code)
-├── userservice/                        # код, що виконується в Shizuku shell-process (UID 2000)
-│   ├── RecorderService.kt              #   IRecorderService.Stub — точка входу
-│   ├── AudioRecorderJob.kt             #   один пumper на AudioRecord
-│   ├── HiddenApiBootstrap.kt           #   обхід hidden-API restrictions через HiddenApiBypass
-│   └── ServiceContext.kt               #   reflective system Context для verifyCaller
-└── app/                                # звичайний користувацький процес
-    ├── recorder/                       #   ShizukuClient + RecorderController (fallback chain)
+├── settings.gradle.kts                 # Gradle 多模块配置
+├── build.gradle.kts                    # 根项目，仅插件别名
+├── gradle/libs.versions.toml           # 版本目录（单一事实来源）
+├── aidl/                               # IRecorderService AIDL 合约（无代码）
+├── userservice/                        # 在 Shizuku shell 进程（UID 2000）中运行的代码
+│   ├── RecorderService.kt              #   IRecorderService.Stub — 入口点
+│   ├── AudioRecorderJob.kt             #   单个 AudioRecord 泵
+│   ├── HiddenApiBootstrap.kt           #   通过 HiddenApiBypass 绕过 hidden-API 限制
+│   └── ServiceContext.kt               #   用于 verifyCaller 的反射系统 Context
+└── app/                                # 普通用户进程
+    ├── recorder/                       #   ShizukuClient + RecorderController（回退链）
     ├── codec/                          #   PcmEncoder · WavEncoder
-    ├── telephony/                      #   CallStateMonitor · CallMonitorService (foreground)
+    ├── telephony/                      #   CallStateMonitor · CallMonitorService（前台）
     ├── storage/                        #   Room (CallRecord) · RecordingStorage
-    ├── settings/                       #   DataStore preferences
-    ├── notify/                         #   notification channels + recording notif
-    ├── di/                             #   manual DI (AppContainer)
+    ├── settings/                       #   DataStore 偏好设置
+    ├── notify/                         #   通知渠道 + 录音通知
+    ├── di/                             #   手动 DI (AppContainer)
     └── ui/                             #   Compose: Onboarding · Home · Library · Playback
 ```
 
-## Передумови
+## 前置条件
 
-- **Android Studio Ladybug Feature Drop (2024.3.x) або новіший** — для AGP 8.8 / Kotlin 2.1.
-- **JDK 21** на хост-машині. Toolchain в Gradle підтягне Eclipse Temurin 21
-  автоматично, якщо в Studio увімкнений Foojay resolver (default з 8.7+).
-- **Android SDK 36** + Build Tools.
-- **Pixel-пристрій з активованим Shizuku** — для запуску.
+- **Android Studio Ladybug Feature Drop (2024.3.x) 或更新版本** — 用于 AGP 8.8 / Kotlin 2.1。
+- **主机上的 JDK 21**。如果 Studio 中启用了 Foojay resolver（8.7+ 默认启用），
+  Gradle 中的 toolchain 会自动下载 Eclipse Temurin 21。
+- **Android SDK 36** + Build Tools。
+- **已激活 Shizuku 的 Pixel 设备** — 用于运行。
 
-## Збірка
+## 构建
 
-1. Клонувати репозиторій.
-2. Згенерувати Gradle wrapper jar (один раз):
+1. 克隆仓库。
+2. 生成 Gradle wrapper jar（一次性）：
 
     ```bash
-    # Якщо `gradle` (8.11+) встановлений системно:
+    # 如果系统已安装 gradle (8.11+)：
     gradle wrapper --gradle-version 8.11.1 --distribution-type bin
 
-    # Або скопіювати з Android Studio:
+    # 或从 Android Studio 复制：
     cp -r "$HOME/Library/Application Support/Google/AndroidStudio*/distributions/.../gradle-8.11/bin/gradle-wrapper.jar" gradle/wrapper/
     ```
 
-3. Білд:
+3. 构建：
 
     ```bash
-    ./gradlew :app:assembleDebug                  # debug APK у app/build/outputs/apk/debug/
-    ./gradlew :app:assembleRelease                # release (потрібен keystore.properties — див. нижче)
-    ./gradlew :app:test :app:lint                 # unit tests + lint
-    ./gradlew :app:connectedAndroidTest           # instrumented (потрібен пристрій)
+    ./gradlew :app:assembleDebug                  # debug APK 在 app/build/outputs/apk/debug/
+    ./gradlew :app:assembleRelease                # release（需要 keystore.properties — 见下文）
+    ./gradlew :app:test :app:lint                 # 单元测试 + lint
+    ./gradlew :app:connectedAndroidTest           # 仪器化测试（需要设备）
     ```
 
-## Підпис релізу
+## 发布签名
 
-Створи `keystore.properties` у корені (gitignored):
+在项目根目录创建 `keystore.properties`（已 gitignored）：
 
 ```properties
-storeFile=/абсолютний/шлях/до/release.jks
+storeFile=/绝对/路径/到/release.jks
 storePassword=…
 keyAlias=callrec
 keyPassword=…
 ```
 
-І додай Gradle property з SHA-256 свого release-cert (lowercase hex, без двокрапок) —
-`UserService.verifyCaller()` використає її як signing pin:
+并添加 release 证书的 SHA-256 作为 Gradle 属性（小写十六进制，无冒号）—
+`UserService.verifyCaller()` 将其用作签名锁定：
 
 ```bash
-# отримай SHA-256:
+# 获取 SHA-256：
 keytool -list -v -keystore release.jks -alias callrec | grep "SHA-256" | awk '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z'
 
-# збережи як Gradle property (~/.gradle/gradle.properties):
+# 保存为 Gradle 属性 (~/.gradle/gradle.properties)：
 echo "callrec.signingSha256=<hash>" >> ~/.gradle/gradle.properties
 ```
 
-У debug-білді `signingSha256` лишається порожнім → перевірка пропускається,
-щоб локальна розробка не вимагала pinning.
+在 debug 构建中，`signingSha256` 为空 → 跳过验证，
+使本地开发不需要签名锁定。
 
-## Використання
+## 使用
 
-1. Встанови **Shizuku** — рекомендуємо community-збірку [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku/releases) (auto-restart watchdog, persistent ADB pairing, активна підтримка). Upstream RikkaApps давно не оновлювався.
-2. Активуй Shizuku через **Wireless Debugging** (без USB-кабеля):
-   - Settings → Developer Options → Wireless Debugging → On
-   - У Shizuku app → "Pair via Wireless Debugging"
-3. Встанови cally APK.
-4. На першому запуску дай Shizuku-permission (system dialog).
-5. Зроби тестовий дзвінок. Запис стартує на OFFHOOK і пише два WAV у
-   `/storage/emulated/0/Android/data/dev.lyo.callrec/files/recordings/`.
+1. 安装 **Shizuku** — 推荐社区构建版 [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku/releases)
+   （自动重启看门狗、持久 ADB 配对、活跃维护）。上游 RikkaApps 长期未更新。
+2. 通过**无线调试**激活 Shizuku（无需 USB 线）：
+   - 设置 → 开发者选项 → 无线调试 → 开启
+   - 在 Shizuku 应用中 → "通过无线调试配对"
+3. 安装 Cally APK。
+4. 首次启动时授予 Shizuku 权限（系统对话框）。
+5. 拨打测试电话。通话在 OFFHOOK 时开始录音，将两个 WAV 文件写入
+   `/storage/emulated/0/Android/data/dev.lyo.callrec/files/recordings/`。
 
-## Тестування на реальному пристрої
+## 真机测试
 
-Перед першим виданням — пройди **обов'язкові перевірки**:
+首次发布前 — 完成**必须检查项**：
 
-- [ ] Shizuku не активний → graceful UI з install кнопкою
-- [ ] BT-гарнітура під час запису → recording продовжується або gracefully зупиняється
-- [ ] 5+ послідовних дзвінків → daemon стабільно перевикористовується
-- [ ] Перезавантаження → daemon треба пересоздавати (Shizuku-сервер теж рестартується)
-- [ ] Samsung S22+ → fallback chain доходить до MIC, без падінь
+- [ ] Shizuku 未激活 → UI 优雅降级，显示安装按钮
+- [ ] 录音期间使用蓝牙耳机 → 录音继续或优雅停止
+- [ ] 连续 5 次以上通话 → 守护进程稳定复用
+- [ ] 重启 → 守护进程需重新创建（Shizuku 服务器也会重启）
+- [ ] 三星 S22+ → 回退链降至 MIC，无崩溃
 
-Веди реальну таблицю: `docs/device-matrix.md` (поки порожня — поповнюй на кожному
-тестовому пристрої).
+维护实际表格：`docs/device-matrix.md`（当前为空——在每个测试设备上填充）。
 
-## Що залишилось зробити (TODO для повноцінного v1.0)
+## 待完成（完整 v1.0 的 TODO）
 
-- [x] **Runtime permissions flow** — `permissions/AppPermissions.kt` + `SetupChecks.kt`.
-- [x] **AAC encoder** — `codec/AacEncoder.kt` (MediaCodec + MediaMuxer, default). WAV — опційно.
-- [x] **Live-audibility verification** — `RecorderController` + 5-step ladder з кешем по `Build.FINGERPRINT` (замінило first-call calibration).
-- [x] **Mix-to-stereo export** — `codec/AudioMixer.kt` + share-діалог у плеєрі (`ui/playback/Sharing.kt`, кеш у `cacheDir/export/`).
-- [x] **Contact resolution** — `contacts/ContactResolver.kt` + `CallLogResolver.kt`.
-- [ ] **SAF integration** — `OpenDocumentTree` для зовнішнього сховища, дзеркало в `MediaStore`
-      щоб записи були видимі у будь-якому файл-менеджері.
-- [x] **WaveformView** — `codec/Waveform.kt` (peak-amplitude reducer) + `ui/playback/WaveformView.kt` (Canvas, тап + драг для seek; для dual — дві дзеркальні доріжки).
-- [ ] **i18n** — англомовна локаль (зараз тільки uk-UA).
+- [x] **运行时权限流程** — `permissions/AppPermissions.kt` + `SetupChecks.kt`。
+- [x] **AAC 编码器** — `codec/AacEncoder.kt`（MediaCodec + MediaMuxer，默认）。WAV — 可选。
+- [x] **实时可听性验证** — `RecorderController` + 按 `Build.FINGERPRINT` 缓存的 5 步回退链（替代首次通话校准）。
+- [x] **立体声混音导出** — `codec/AudioMixer.kt` + 播放器中的分享对话框（`ui/playback/Sharing.kt`，缓存于 `cacheDir/export/`）。
+- [x] **联系人解析** — `contacts/ContactResolver.kt` + `CallLogResolver.kt`。
+- [ ] **SAF 集成** — `OpenDocumentTree` 用于外部存储，镜像到 `MediaStore`
+      使录音在任何文件管理器中可见。
+- [x] **波形视图** — `codec/Waveform.kt`（峰值幅度缩减器）+ `ui/playback/WaveformView.kt`（Canvas，点击 + 拖动进行 seek；双轨时显示两条镜像轨道）。
+- [ ] **i18n** — 英文语言包（当前仅 uk-UA）。
 
-## Безпека і приватність
+## 安全与隐私
 
-- **Жодного Firebase / Crashlytics / Sentry / analytics / telemetry.** Перевірити можна grep'ом — нуль cloud-SDK у залежностях.
-- **INTERNET permission присутній**, але задіяний винятково для опціональної cloud-транскрипції. Поки користувач не ввів API ключ у Налаштуваннях, мережевих запитів немає взагалі. Endpoint user-configurable — можна вказати self-hosted сервер. Технічна вимога: endpoint має підтримувати OpenAI chat-completions API з `input_audio` content parts (формат gpt-4o-audio / Gemini multimodal, **не** Whisper transcription API). Робочі self-hosted варіанти станом на 2026: **vLLM-Omni з Qwen2.5-Omni-7B** ([docs.vllm.ai/projects/vllm-omni](https://docs.vllm.ai/projects/vllm-omni/)), **vLLM з Gemma 4 E2B/E4B** (audio multimodal, mid-2025+). Standard vLLM serve для Qwen2.5-Omni наразі тільки text output (thinker mode); для audio-input через chat-completions потрібен саме vLLM-Omni fork. Whisper-only сервери (whisper.cpp, faster-whisper) поточним кодом не підтримуються — у них інший endpoint format. У self-hosted режимі аудіо не покидає вашу мережу.
-- **Сам запис аудіо ніколи не торкається мережі.** Файли пишуться у `Android/data/dev.lyo.callrec/files/recordings/` і залишаються там до експорту самим користувачем.
-- `RecorderService.verifyCaller()` перевіряє UID + SHA-256 release-cert на КОЖНИЙ AIDL-виклик. З `daemon=true` сервіс живе після нашого app — це захист від іншого Shizuku-permitted додатку, який міг би теоретично знайти наш Binder.
-- `data_extraction_rules.xml` + `backup_rules.xml` забороняють adb-backup та cloud-restore.
-- `network_security_config.xml` забороняє cleartext traffic — bearer-токен користувацького API ключа не може просочитися навіть якщо typo / редірект downgrade'не схему.
-- Notification про активний запис — `setOngoing(true)` + `VISIBILITY_PUBLIC`. Не приховуємо.
+- **无任何 Firebase / Crashlytics / Sentry / analytics / telemetry。** 可通过 grep 验证——依赖中零云端 SDK。
+- **INTERNET 权限存在**，但仅用于可选的云端转录。在用户在设置中输入 API 密钥之前，完全没有网络请求。端点可由用户配置——可指定自托管服务器。技术要求：端点需支持带有 `input_audio` content parts 的 OpenAI chat-completions API（格式为 gpt-4o-audio / Gemini multimodal，**不是** Whisper transcription API）。截至 2026 年的可用自托管方案：**vLLM-Omni with Qwen2.5-Omni-7B**（[docs.vllm.ai/projects/vllm-omni](https://docs.vllm.ai/projects/vllm-omni/)），**vLLM with Gemma 4 E2B/E4B**（audio multimodal，2025 年中+）。标准 vLLM serve 用于 Qwen2.5-Omni 目前仅输出文本（thinker 模式）；要通过 chat-completions 进行音频输入，需要 vLLM-Omni fork。纯 Whisper 服务器（whisper.cpp、faster-whisper）当前代码不支持——它们的端点格式不同。在自托管模式下，音频不会离开你的网络。
+- **录音本身从不接触网络。** 文件写入 `Android/data/dev.lyo.callrec/files/recordings/` 并在用户自行导出前保留在那里。
+- `RecorderService.verifyCaller()` 在**每次** AIDL 调用时验证 UID + release 证书的 SHA-256。由于 `daemon=true`，服务在我们的应用退出后仍存活——这是为了防范其他具有 Shizuku 权限的应用理论上发现我们的 Binder。
+- `data_extraction_rules.xml` + `backup_rules.xml` 禁止 adb 备份和云端恢复。
+- `network_security_config.xml` 禁止明文流量——用户 API 密钥的 bearer token 即使因拼写错误/重定向降级协议也不会泄露。
+- 录音进行中的通知 — `setOngoing(true)` + `VISIBILITY_PUBLIC`。不隐藏。
 
-> **Caveat про API ключ:** ключ для STT-транскрипції зберігається у Android DataStore (app-private sandbox storage) у відкритому вигляді. На розблокованому пристрої без root доступу його прочитати може лише сам додаток; на рутованому або forensic-витягнутому образі — будь-хто з shell. Якщо ваша модель загроз цього не толерує — не використовуйте cloud-транскрипцію або вкажіть локальний self-hosted endpoint.
+> **关于 API 密钥的注意事项：** STT 转录的密钥以明文存储在 Android DataStore（应用私有沙箱存储）中。在无 root 权限的已解锁设备上，只有应用本身可以读取它；在已 root 或 forensic 提取的镜像上——任何有 shell 权限的人都可以读取。如果你的威胁模型不能容忍这一点——不要使用云端转录，或指定本地自托管端点。
 
-## Ліцензія
+## 许可证
 
-GPL-3.0-or-later — повний текст у [`LICENSE`](LICENSE). Спорідненість архітектури з BCR (chenxiaolong).
+GPL-3.0-or-later — 全文见 [`LICENSE`](LICENSE)。架构与 BCR (chenxiaolong) 有渊源。
 
 ---
 
-Питання, баги, ідеї — issues. Pull requests з нових device матриць — особливо вітаються.
+问题、Bug、想法 — Issues。来自新设备矩阵的 Pull Requests — 特别欢迎。

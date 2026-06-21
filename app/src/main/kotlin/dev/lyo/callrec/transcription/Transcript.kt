@@ -32,7 +32,7 @@ data class Transcript(
     data class SpeakerInfo(
         /** Stable id within this transcript — referenced by [Segment.speakerId]. */
         val id: String,
-        /** UI-facing label. Name > role > "Спікер N". */
+        /** UI-facing label. Name > role > "发言人 N". */
         val label: String,
     )
 
@@ -75,7 +75,7 @@ object TranscriptCodec {
                     val o = arr.getJSONObject(i)
                     Transcript.SpeakerInfo(
                         id = o.optString("id").ifBlank { "S${i + 1}" },
-                        label = o.optString("label").ifBlank { "Спікер ${i + 1}" },
+                        label = o.optString("label").ifBlank { "发言人 ${i + 1}" },
                     )
                 }
             }
@@ -144,8 +144,8 @@ object TranscriptCodec {
     }
 
     private fun legacyLabel(id: String): String = when (id) {
-        Transcript.LEGACY_ME -> "Я"
-        Transcript.LEGACY_THEM -> "Співрозмовник"
+        Transcript.LEGACY_ME -> "我"
+        Transcript.LEGACY_THEM -> "对方"
         else -> "?"
     }
 

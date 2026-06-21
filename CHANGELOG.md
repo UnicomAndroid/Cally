@@ -1,186 +1,186 @@
-# Changelog
+# 更新日志
 
-Усі помітні зміни — тут. Формат: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), версіонування — [SemVer](https://semver.org/spec/v2.0.0.html).
+所有显著变更记录于此。格式：[Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本管理遵循 [SemVer](https://semver.org/spec/v2.0.0.html)。
 
 ## [Unreleased]
 
-### Додано
+### 新增
 -
 
-### Змінено
+### 变更
 -
 
-### Виправлено
+### 修复
 -
 
-### Безпека
+### 安全
 -
 
-### Видалено
+### 移除
 -
 
-### Застаріле (Deprecated)
+### 已弃用 (Deprecated)
 -
 
 ## [0.5.0] — 2026-05-01
 
-### Змінено
-- **STT-мікс перероблено на RMS-нормалізоване моно** (`AudioMixer.mixNormalizedMonoForStt`). Раніше слали soft-pan стерео в розрахунку на канальну diarization, але офіційна дока Gemini ([ai.google.dev/gemini-api/docs/audio](https://ai.google.dev/gemini-api/docs/audio)) прямо каже: *«multi-channel audio is automatically combined into a single channel»* — pan ігнорується, а stereo додатково створює timestamp drift ±10%. Реальна причина чому модель чула лише користувача — uplink (mic-direct) на ~12 dB голосніший за downlink (post-codec) у сумі. Тепер кожен бік скейлиться до ~−18 dBFS RMS перед сумою → обидва спікери присутні з порівнянною гучністю в моно-міксі. Промпт оновлено: викинуто інструкцію про лівий/правий канал (брехня для моделі), посилено diarization за voice characteristics. Soft-pan стерео-мікс лишається для sharing/playback де він робить свою роботу для людських вух.
+### 变更
+- **STT 混音重新设计为 RMS 归一化单声道** (`AudioMixer.mixNormalizedMonoForStt`)。此前发送 soft-pan 立体声，期望实现声道分离的说话人识别，但 Gemini 官方文档 ([ai.google.dev/gemini-api/docs/audio](https://ai.google.dev/gemini-api/docs/audio)) 明确指出：*«multi-channel audio is automatically combined into a single channel»*——pan 被忽略，且立体声额外产生 ±10% 的时间戳漂移。模型只听到用户声音的真正原因：上行（mic-direct）比下行（post-codec）在混合中大约响 12 dB。现在每侧缩放到约 −18 dBFS RMS 后再混合 → 两个说话人在单声道混音中以可比较的响度出现。提示词已更新：移除了左右声道的指令（对模型来说是虚假信息），增强了基于声音特征的说话人识别。Soft-pan 立体声混音保留用于分享/播放，它在人耳听感中表现正常。
 
-### Виправлено
-- **Транскрипція дзвінка більше не зливає весь діалог на «Я»** — наслідок зміни вище. Симптом: на dual-stream записах `Transcriber` повертав сегменти лише з `speaker_id="ME"`, голос співрозмовника або взагалі ігнорувався, або потрапляв у репліки користувача.
+### 修复
+- **通话转录不再将所有对话归给"我"** — 上述变更的结果。症状：在双流录音中，`Transcriber` 仅返回 `speaker_id="ME"` 的分段，对方声音要么被完全忽略，要么被归入用户的发言中。
 
-### Безпека
+### 安全
 -
 
-### Видалено
+### 移除
 -
 
-### Застаріле (Deprecated)
+### 已弃用 (Deprecated)
 -
 
 ## [0.4.1] — 2026-04-28
 
-### Виправлено
-- **`RecorderController.tryDual` / `trySingle`** — внутрішній `catch (DeadObjectException)` був вужчий ніж зовнішній `catch (RemoteException)` у `openStrategy`, тому всі інші підкласи `RemoteException` (TransactionTooLargeException тощо) ковтались наступним `catch (Throwable) { 0 }` і класифікувались як `InitFailure` → отруювали capability cache. Тепер ловимо весь `RemoteException` ієрархічно, dead-object теж летить тим же шляхом → коректний `Transient` без cache poisoning.
-- **`DaemonHealth.NotInstalled` тепер реально досяжний** — `ShizukuClient.recompute()` додатково пробує `PackageManager.getPackageInfo("moe.shizuku.privileged.api", 0)` щоб відрізнити «не встановлений» від «встановлений але не запущений». Раніше обидва випадки сходились у `NotRunning`, нотифікація «cally: Shizuku not installed» і відповідна StepCard в onboarding були мертвим кодом.
-- **Onboarding step indices** — на Android 13+ POST_NOTIFICATIONS і «Дозволи системи» обидва мали `index = 4`, користувач бачив «1, 2, 3, 4, 4, 5, 6». Замінено на лічильник `var stepIdx = 4; index = stepIdx++`, що дає консистентне 4/5/6/7 на Tiramisu+ і 4/5/6 на старіших.
-- **`AudioLevelMeter` warmup тепер 500 мс реального аудіо** — раніше калібровка тривала 50 викликів `update()`, що при 8KB pump-чанках = ~25 секунд. Pixel ringback (~1 с) попадав у медіану → calibratedFloor завищувався → реальна розмова реєструвалась як тиша → strategy зайво деградувала по драбині. Тепер гейт за `totalFrames >= sampleRate / 2`, що гарантовано 500 мс незалежно від розміру буфера.
+### 修复
+- **`RecorderController.tryDual` / `trySingle`** — 内部 `catch (DeadObjectException)` 比外部 `openStrategy` 中的 `catch (RemoteException)` 更窄，导致所有其他 `RemoteException` 子类（TransactionTooLargeException 等）被下一个 `catch (Throwable) { 0 }` 吞掉并被归类为 `InitFailure` → 污染能力缓存。现在按层级捕获整个 `RemoteException`，dead-object 也走相同路径 → 正确的 `Transient` 分类，无缓存污染。
+- **`DaemonHealth.NotInstalled` 现在真正可达** — `ShizukuClient.recompute()` 额外尝试 `PackageManager.getPackageInfo("moe.shizuku.privileged.api", 0)` 以区分"未安装"和"已安装但未运行"。此前两种情况都归类为 `NotRunning`，"cally: Shizuku not installed"通知和引导页中相应的 StepCard 是死代码。
+- **引导页步骤序号** — 在 Android 13+ 上 POST_NOTIFICATIONS 和"系统权限"的 `index` 均为 4，用户看到"1, 2, 3, 4, 4, 5, 6"。改用计数器 `var stepIdx = 4; index = stepIdx++`，在 Tiramisu+ 上得到一致的 4/5/6/7，在旧版本上得到 4/5/6。
+- **`AudioLevelMeter` 预热现在为 500 ms 实际音频** — 此前校准持续 50 次 `update()` 调用，在 8KB pump chunk 下 = ~25 秒。Pixel 回铃音（~1 s）落入中位数 → calibratedFloor 被高估 → 实际对话被判定为静音 → 策略在回退链上不必要地降级。现在门控条件为 `totalFrames >= sampleRate / 2`，保证 500 ms，与缓冲区大小无关。
 
-### Безпека
-- **`SeedDataActivity` (debug-only) тепер перевіряє caller** — раніше `exported=true` без runtime-guard'а дозволяв будь-якому додатку на пристрої з debug-інсталяцією знести БД записів через простий Intent. Додано перевірку `Activity.referrer.host == "com.android.shell" || == packageName` — `am start` з ADB проходить, інші on-device виклики блокуються із Toast'ом «untrusted caller blocked». Спробували `exported=false` спершу, але Samsung One UI 16 рефюзить shell-старти non-exported activities навіть на debuggable-білдах.
-- **`CompletedRecordingNotification.visibility = VISIBILITY_PRIVATE`** — раніше було `VISIBILITY_PUBLIC` і lockscreen показував повне ім'я контакту («Дзвінок записано: Джерело — Харків · 3:42»). Реальна OPSEC проблема для T2 (журналіст). Активна нотифікація запису лишається `PUBLIC` за threat-model рішенням «не приховуємо факт запису».
+### 安全
+- **`SeedDataActivity`（仅 debug）现在验证调用者** — 此前 `exported=true` 且无运行时防护，允许安装了 debug 版本的设备上任何应用通过简单 Intent 清空录音数据库。已添加 `Activity.referrer.host == "com.android.shell" || == packageName` 检查——来自 ADB 的 `am start` 通过，其他设备内调用被阻止并显示 Toast"untrusted caller blocked"。曾尝试首先使用 `exported=false`，但三星 One UI 16 即使在 debuggable 构建上也拒绝 shell 启动非导出 activity。
+- **`CompletedRecordingNotification.visibility = VISIBILITY_PRIVATE`** — 此前为 `VISIBILITY_PUBLIC`，锁屏显示完整联系人姓名（"通话已录制：Джерело — Харків · 3:42"）。对 T2（记者）构成实际 OPSEC 问题。正在录音的通知保持 `PUBLIC`，符合威胁模型"不隐藏录音事实"的决策。
 
-### Змінено
-- Прибрано дубльований KDoc-блок над `RecorderController.stop()`.
+### 变更
+- 移除了 `RecorderController.stop()` 上方的重复 KDoc 块。
 
 ## [0.4.0] — 2026-04-28
 
-### Додано
-- **Voice-memo mode у мануальному записі** — `RecorderController.start(callId, voiceMemo = true)` пропускає всю dual/voicecall fallback-драбину і одразу відкриває `Strategy.SingleMic`. Без call audio path інші стратегії все одно деградували б до MIC, але через 5 сек тиші, з помилковим показом "downlink silent" у банері. Сесії маркуються в БД як `mode = "VoiceMemo"`, CallLog post-mortem пропускається щоб не привʼязати випадковий контакт до диктофонного запису.
-- **Multi-speaker діаризація + smart-title в транскрипції** — промпт `Transcriber` оновлено щоб модель повертала `speakers: [{id, label}]` замість фіксованих me/them, плюс поле `title` (короткий опис до 60 символів). Парсер `TranscriptCodec` обробляє нову схему з backward-compat для legacy записів (старе `speaker: "me"|"them"` транслюється у synthetic speakers). У списку записів voice-memo нарешті отримує осмислену назву (наприклад «Список покупок і плани на вихідні») замість дати, як тільки користувач транскрибує.
-- **Telegram-style chat layout для транскрипції** — `TranscriptView` рендериться як месенджер: основний спікер (id=ME або перший у списку) праворуч у `primaryContainer`-bubble, інші ліворуч у нейтральному `surfaceContainerHigh`, з ініціал-аватаром (тільки на першій репліці групи), асиметричний `RoundedCornerShape` для bubble-силуету. Час і тон — у нижньому правому кутку bubble.
-- **Куратовна 8-кольорова палітра спікерів — лише на аватарах** — кожен унікальний голос отримує власний відтінок (azure / amber / teal / rose / indigo / olive / terracotta / cyan) з окремими варіантами під light і dark теми. Колір живе тільки на ініціал-аватарі і header-лейблі над першою реплікою групи; bubbles нейтральні (TG-pattern: «painted avatar, grey cloud»). Палітра локальна у `PlaybackScreen.chatAccents()` бо M3 `colorScheme` дає лише ~3 container ролі — недостатньо для категоричних кольорів зустрічей з 4+ спікерами.
+### 新增
+- **手动录音中的语音备忘录模式** — `RecorderController.start(callId, voiceMemo = true)` 跳过整个 dual/voicecall 回退链，直接使用 `Strategy.SingleMic`。没有通话音频路径时，其他策略无论如何都会降级到 MIC，但会经历 5 秒静音且横幅中错误显示"downlink silent"。会话在数据库中标记为 `mode = "VoiceMemo"`，跳过 CallLog 后处理以避免将随机联系人关联到录音机录音。
+- **多说话人识别 + 转录智能标题** — `Transcriber` 提示词已更新，模型返回 `speakers: [{id, label}]` 而非固定的 me/them，外加 `title` 字段（最多 60 字符的简短描述）。`TranscriptCodec` 解析器处理新模式，对旧录音向后兼容（旧的 `speaker: "me"|"them"` 转换为合成 speakers）。录音列表中，语音备忘录终于获得有意义的名称（如"购物清单和周末计划"）而非日期，只要用户进行了转录。
+- **Telegram 风格的聊天布局用于转录** — `TranscriptView` 渲染为即时通讯风格：主要说话人（id=ME 或列表中的第一个）显示在右侧 `primaryContainer` 气泡中，其他人显示在左侧中性 `surfaceContainerHigh` 中，带有首字母头像（仅限分组的第一条发言），气泡轮廓采用不对称的 `RoundedCornerShape`。时间和语气显示在气泡右下角。
+- **精心设计的 8 色调色板用于说话人——仅在头像上** — 每个独特的声音获得自己的色调（azure / amber / teal / rose / indigo / olive / terracotta / cyan），有单独的浅色和深色主题变体。颜色仅存在于首字母头像和分组第一条发言上方的标题标签中；气泡保持中性（TG 模式："彩色头像，灰色气泡"）。调色板是 `PlaybackScreen.chatAccents()` 中的局部实现，因为 M3 `colorScheme` 仅提供约 3 种容器角色——不足以满足 4 个以上说话人的分类颜色需求。
 
-### Змінено
-- **Кнопка зупинення тепер у банері статусу** — раніше була у bottom-right floating toolbar, що погано звʼязувалось зі статусом запису у верхньому банері. Тепер `FilledIconButton` зі Stop іконкою живе праворуч у самому банері, поряд із текстом «Запис увімкнено». FAB прибрано (без дублювання).
-- **Список записів і live-meter ховають другу доріжку для voice-memo** — `Levels.voiceMemo: Boolean` пробивається з `RecorderController` у UI; `StatusBanner` рендерить лише uplink meter, RecordingRow показує «Голосовий запис · 28 квіт, 15:42» замість прочерка.
-- **Транскрипція рендериться flush, без обгортання у Card** — раніше `TranscriptionSection` була загорнута у `surfaceContainerLow` Card, що зʼїдало ~32 dp padding'у і дублювало візуальну ієрархію (Card-у-Card). Тепер chat-bubbles лежать прямо на playback screen surface, як стрічка повідомлень у Telegram.
+### 变更
+- **停止按钮现在位于状态横幅中** — 此前位于右下角浮动工具栏中，与顶部横幅中的录音状态视觉关联差。现在带有停止图标的 `FilledIconButton` 位于横幅右侧，紧邻"录制中"文本。移除了 FAB（无重复）。
+- **录音列表和实时电平表为语音备忘录隐藏第二轨道** — `Levels.voiceMemo: Boolean` 从 `RecorderController` 穿透到 UI；`StatusBanner` 仅渲染上行电平表，RecordingRow 显示"语音备忘录 · 4月28日, 15:42"而非空白占位符。
+- **转录直接渲染，不包裹在 Card 中** — 此前 `TranscriptionSection` 包裹在 `surfaceContainerLow` Card 中，消耗约 32 dp 内边距并重复视觉层次（Card 中有 Card）。现在聊天气泡直接放置在播放屏幕表面上，类似 Telegram 的消息流。
 
-### Виправлено
-- Імʼя для записів без контакту більше не показується як «—» — для voice-memo коректно показується «Голосовий запис» + дата/час, або AI-title якщо запис уже транскрибовано.
+### 修复
+- 无联系人的录音不再显示为"—"——语音备忘录正确显示"语音备忘录"+ 日期/时间，如果已转录则显示 AI 标题。
 
 ## [0.3.0] — 2026-04-28
 
-### Додано
-- **Bypass-health AIDL signal** — `WrappedShellContext` тепер відстежує покриття reflection-патчів (sCurrentActivityThread / mSystemThread / mInitialApplication / mBoundApplication) як `BypassHealth` enum (Failed / Degraded / Full), доступний через новий AIDL-метод `getBypassHealth() = 4`. Calibration ladder в `RecorderController` більше не отруює `Capabilities` cache strategy-failure'ами коли реальна причина — bypass деградація.
-- **`DaemonHealth` sealed state machine** — заміняє legacy `ShizukuState` enum + окремий `service: StateFlow<IRecorderService?>`. Шість станів: `NotInstalled / NotRunning / NoPermission / Stale / Bound(service) / Unhealthy(reason)`. Single source of truth для всіх UI-та-сервіс споживачів стану Shizuku/UserService.
-- **System notification про daemon health** — нове сповіщення на каналі `callrec.status` з'являється коли `DaemonHealth != Bound` і авто-зникає при відновленні. Tap відкриває setup screen з deep-link state-aware action (`EXTRA_FROM_HEALTH_NOTIF`). VISIBILITY_PRIVATE для privacy.
-- **Adaptive noise floor у `AudioLevelMeter`** — `calibratedFloor` навчається як медіана RMS перших ~500 ms семплів; `isAudible` повертає `lastRms > calibratedFloor + AUDIBLE_DELTA (0.008f)`. Замість фіксованого `AUDIBLE_THRESHOLD = 0.005` — поріг adaptive per-stream.
-- **`OpenResult` sealed type для класифікації failures** в `RecorderController.openStrategy`: `Success(outcome) / InitFailure(reason) / Transient(reason)`. Transient (DeadObjectException / RemoteException / SecurityException) bail'ять без cache mutation.
-- **POST_NOTIFICATIONS opt-in step** в onboarding (Android 13+) — гарантія що daemon health notifications дійсно з'являться користувачу.
-- **Onboarding tip card** з рекомендацією community Shizuku build з auto-restart watchdog (`thedjchi/Shizuku`).
-- **Debug-only `DaemonHealthDebugActivity`** для триаджу device-matrix issues — показує BypassHealth, DaemonHealth, Capabilities cache. У release не входить (`app/src/debug/`).
-- **One-shot health verification на `Lifecycle.State.RESUMED`** через `ProcessLifecycleOwner` — детектить zombie daemon коли користувач відкриває app. Нуль ідл-полінгу (event-driven отбита решта кейсів).
+### 新增
+- **绕过健康状态 AIDL 信号** — `WrappedShellContext` 现在跟踪反射补丁覆盖率（sCurrentActivityThread / mSystemThread / mInitialApplication / mBoundApplication），作为 `BypassHealth` 枚举（Failed / Degraded / Full），通过新的 AIDL 方法 `getBypassHealth() = 4` 可访问。当实际原因是绕过降级时，`RecorderController` 中的校准回退链不再用策略失败信息污染 `Capabilities` 缓存。
+- **`DaemonHealth` 密封状态机** — 替代旧的 `ShizukuState` 枚举 + 独立的 `service: StateFlow<IRecorderService?>`。六种状态：`NotInstalled / NotRunning / NoPermission / Stale / Bound(service) / Unhealthy(reason)`。所有 UI 和服务消费者获取 Shizuku/UserService 状态的单一事实来源。
+- **关于守护进程健康的系统通知** — 当 `DaemonHealth != Bound` 时，新的 `callrec.status` 通道通知出现，恢复时自动消失。点击打开设置屏幕，带有深度链接的状态感知操作（`EXTRA_FROM_HEALTH_NOTIF`）。使用 VISIBILITY_PRIVATE 保护隐私。
+- **`AudioLevelMeter` 中的自适应噪底** — `calibratedFloor` 学习为前约 500 ms 样本的中位数 RMS；`isAudible` 返回 `lastRms > calibratedFloor + AUDIBLE_DELTA (0.008f)`。替代固定 `AUDIBLE_THRESHOLD = 0.005`——每路流自适应阈值。
+- **用于分类失败的 `OpenResult` 密封类型**，在 `RecorderController.openStrategy` 中：`Success(outcome) / InitFailure(reason) / Transient(reason)`。Transient（DeadObjectException / RemoteException / SecurityException）退出时不改变缓存。
+- **引导页中的 POST_NOTIFICATIONS 选择加入步骤**（Android 13+）— 确保守护进程健康通知确实对用户可见。
+- **引导页提示卡**，推荐带有自动重启看门狗的社区 Shizuku 构建版（`thedjchi/Shizuku`）。
+- **仅 debug 的 `DaemonHealthDebugActivity`** 用于分类设备矩阵问题——显示 BypassHealth、DaemonHealth、Capabilities 缓存。不包含在 release 中（`app/src/debug/`）。
+- **在 `Lifecycle.State.RESUMED` 时进行一次性健康验证**，通过 `ProcessLifecycleOwner`——当用户打开应用时检测僵尸守护进程。零空闲轮询（其余情况由事件驱动）。
 
-### Змінено
-- `CallMonitorService.kickoff()` тепер чекає `health.filterIsInstance<DaemonHealth.Bound>().first().service` замість роздільних `bind()` + `service.filterNotNull()` — single composite signal who subsumes "bound + version match + permission OK".
-- `recordingStarted` тепер скидається у `try/finally` блоці `kickoff()` при будь-якій помилці (закриває гонку де STICKY restart бачив `recordingStarted=true` після failed kickoff).
-- `OverlayTrick.briefly()` тепер strict-asserts `canShow=true` precondition; перевірка переїхала вище у `CallStateReceiver`, який postить user-visible notification якщо overlay permission відсутній.
-- `RecorderController` calibration writes тепер gated на `mutateCache: Boolean = (bypassHealth == Full)` — на Degraded bypass cache не отруюється.
-- `MainActivity` має `launchMode="singleTop"` + `onNewIntent` обробляє `EXTRA_FROM_HEALTH_NOTIF` тригерячи health re-check.
+### 变更
+- `CallMonitorService.kickoff()` 现在等待 `health.filterIsInstance<DaemonHealth.Bound>().first().service` 而非分离的 `bind()` + `service.filterNotNull()`——统一的复合信号，包含"已绑定 + 版本匹配 + 权限 OK"。
+- `recordingStarted` 现在在 `kickoff()` 的 `try/finally` 块中重置，在任何错误时（修复了 STICKY 重启在 kickoff 失败后看到 `recordingStarted=true` 的竞态）。
+- `OverlayTrick.briefly()` 现在严格断言 `canShow=true` 前提条件；检查上移到 `CallStateReceiver`，如果缺少 overlay 权限则发送用户可见通知。
+- `RecorderController` 校准写入现在门控于 `mutateCache: Boolean = (bypassHealth == Full)`——在 Degraded 绕过时缓存不被污染。
+- `MainActivity` 具有 `launchMode="singleTop"` + `onNewIntent` 处理 `EXTRA_FROM_HEALTH_NOTIF` 触发健康重新检查。
 
-### Видалено
-- AIDL метод `probeSource = 20` (ніколи не викликався з app — dead surface). Transaction code 20 зарезервовано коментарем.
-- AIDL метод `grantPermission = 30` (ніколи не викликався з app — dead surface). Transaction code 30 зарезервовано коментарем.
-- `ALLOWED_GRANT_PERMS` companion field у `RecorderService`.
-- `READ_LOGS` permission з manifest (тільки `grantPermission` його використовував — обидва видалені).
-- `ShizukuState` enum file (заміщений `DaemonHealth`).
-- Silent no-op branch в `OverlayTrick.briefly` (тепер strict).
-- `bailedOnDeadDaemon: Boolean` flag в `RecorderController` (заміщений семантикою `OpenResult.Transient`).
+### 移除
+- AIDL 方法 `probeSource = 20`（从未被 app 调用——死亡接口）。事务码 20 以注释形式保留。
+- AIDL 方法 `grantPermission = 30`（从未被 app 调用——死亡接口）。事务码 30 以注释形式保留。
+- `RecorderService` 中的 `ALLOWED_GRANT_PERMS` 伴生字段。
+- manifest 中的 `READ_LOGS` 权限（仅 `grantPermission` 使用——两者均已移除）。
+- `ShizukuState` 枚举文件（被 `DaemonHealth` 替代）。
+- `OverlayTrick.briefly` 中的静默 no-op 分支（现为严格模式）。
+- `RecorderController` 中的 `bailedOnDeadDaemon: Boolean` 标志（被 `OpenResult.Transient` 语义替代）。
 
-### Виправлено
+### 修复
 -
 
-### Безпека
+### 安全
 -
 
-### Застаріле (Deprecated)
+### 已弃用 (Deprecated)
 -
 
 ## [0.2.0] — 2026-04-28
 
-### Додано
-- First-run legal disclaimer (ModalBottomSheet) з 3-tier таксономією юрисдикцій: (1) one-party consent — без сповіщення, (2) all-party + implied consent — достатньо попередити, (3) explicit consent — потрібна явна згода (DE/AT/BE). Кожен tier розгортається тапом, відкриваючи legal references (§ 201 StGB, 18 U.S.C. § 2511, CA Penal Code § 632 тощо). Завжди видимий tech-блок про неможливість beep-сповіщення через uplink.
-- Settings → Про додаток → "Юридичне попередження" — повторне відкриття того самого sheet'а як read-only.
-- Версійований DataStore-флаг `disclaimer_accepted_v1` для майбутнього re-prompt при істотних змінах тексту.
-- WAV encoder перезаписує RIFF-хедер кожен ~1 МБ — hard-killed запис залишається відтворюваним.
-- DB↔FS reconciliation pass позначає записи, чий аудіофайл був видалений поза додатком.
-- Cloud STT API ключ зашифрований at rest через Android Keystore-backed AES/GCM.
+### 新增
+- 首次启动法律免责声明（ModalBottomSheet），采用三级司法管辖区分类：(1) 一方同意——无需通知，(2) 多方同意 + 默示同意——通知即足够，(3) 明确同意——需要明确的知情同意（DE/AT/BE）。每个级别点击展开，显示法律引用（§ 201 StGB、18 U.S.C. § 2511、CA Penal Code § 632 等）。始终可见的技术说明：关于无法通过上行链路实现提示音通知。
+- 设置 → 关于应用 → "法律声明"——以只读方式重新打开相同的表单。
+- 带版本的 DataStore 标志 `disclaimer_accepted_v1`，用于将来文本重大更改时重新提示。
+- WAV 编码器每约 1 MB 重写 RIFF 头——被强制终止的录音仍可播放。
+- DB↔FS 对账遍历标记音频文件已在应用外被删除的录音。
+- 云端 STT API 密钥通过 Android Keystore 支持的 AES/GCM 静态加密。
 
-### Змінено
-- README: секцію «Користувачам поза Україною» переписано в 3-tier структуру (без сповіщення / достатньо попередити / explicit consent) з матрицею-резюме «що дозволено в кожному рівні».
-- Номери телефонів і контактні імена більше не з'являються у release logcat на рівні INFO (тільки DEBUG).
-- AAC encoder ретраїть EOS input slot до 5 разів під час close — moov atom MP4-контейнера тепер завжди записується.
-- Recorder pump joins подовжено до 5 с; якщо pump усе ще заблокований — pipe FD force-close.
-- Strategy ladder чесно завершується, коли Shizuku daemon binder вмирає посеред спроби, замість рапортувати "all silent".
+### 变更
+- README："乌克兰以外用户"部分重写为三级结构（无需通知 / 通知即足够 / 明确同意），附有"每个级别允许什么"的摘要矩阵。
+- 电话号码和联系人姓名不再出现在 release logcat 的 INFO 级别（仅 DEBUG）。
+- AAC 编码器在关闭期间重试 EOS 输入槽最多 5 次——MP4 容器的 moov atom 现在总是被写入。
+- 录音 pump join 延长至 5 秒；如果 pump 仍然阻塞——管道 FD 强制关闭。
+- 策略回退链在 Shizuku 守护进程 binder 在尝试过程中死亡时优雅终止，而非报告"全部静音"。
 
-### Виправлено
-- Release-білди тепер активують verifyCaller signing-cert pin (signingSha256 раніше був порожній).
-- Cleanup-запити пропускають записи, що ще тривають (ended_at IS NULL).
-- WRITE_SECURE_SETTINGS прибрано з UserService grant allow-list — у v0.2.0 жоден шлях його не використовує.
-- Strategy ladder більше не поміщає робочу стратегію у `knownFailedInit`, коли Shizuku daemon binder вмер посеред спроби — кеш вибору залишається валідним.
+### 修复
+- Release 构建现在激活 verifyCaller 签名证书锁定（此前 signingSha256 为空）。
+- 清理请求跳过仍在进行中的录音（ended_at IS NULL）。
+- 从 UserService 授予允许列表中移除 WRITE_SECURE_SETTINGS——v0.2.0 中没有任何路径使用它。
+- 策略回退链在 Shizuku 守护进程 binder 在尝试过程中死亡时，不再将正常工作的策略放入 `knownFailedInit`——选择缓存保持有效。
 
 ### UserService
-- `userServiceVersion` 10 → 11. AudioRecorderJob.stop() тепер force-close pipe FD при таймауті join, і RecorderService прибрав `WRITE_SECURE_SETTINGS` з allow-list. Daemon з `daemon=true` після оновлення APK respawn'иться автоматично через version mismatch у `ShizukuClient.onServiceConnected`.
+- `userServiceVersion` 10 → 11。AudioRecorderJob.stop() 现在在 join 超时时强制关闭管道 FD，RecorderService 从允许列表中移除 `WRITE_SECURE_SETTINGS`。APK 更新后，带 `daemon=true` 的守护进程通过 `ShizukuClient.onServiceConnected` 中的版本不匹配自动重新生成。
 
-### Заплановано
-- SAF integration (`OpenDocumentTree` + MediaStore mirror)
-- Англомовна локаль (`values-en/strings.xml`)
-- Encrypted vault (AES-GCM, PIN/biometric)
-- GitHub Actions CI (lint + test + assembleDebug)
-- Material 3 ButtonGroup overload migration (5 callsites — `overflowIndicator` parameter)
+### 计划中
+- SAF 集成（`OpenDocumentTree` + MediaStore 镜像）
+- 英文语言包（`values-en/strings.xml`）
+- 加密保险库（AES-GCM，PIN/生物识别）
+- GitHub Actions CI（lint + test + assembleDebug）
+- Material 3 ButtonGroup 重载迁移（5 个调用点 — `overflowIndicator` 参数）
 
 ## [0.1.0] — 2026-04-27
 
-Перший публічний реліз. MVP scaffold.
+第一个公开发布。MVP 骨架。
 
-### Додано
-- AIDL-міст `:aidl/IRecorderService` між app-процесом і Shizuku UserService.
-- Shizuku UserService з `daemon=true`: процес живе після свопу додатку з recents.
-- Privileged recorder у shell-процесі (UID 2000) через `WrappedShellContext` (impersonation `com.android.shell` для проходження AudioFlinger gate).
-- 5-step fallback ladder з live-audibility verification, кеш по `Build.FINGERPRINT`:
-  1. `VOICE_UPLINK` + `VOICE_DOWNLINK` (dual paralel)
-  2. `MIC` + `VOICE_DOWNLINK` (Samsung-friendly)
-  3. `VOICE_CALL` stereo (L=uplink/R=downlink)
-  4. `VOICE_CALL` mono
-  5. `MIC` only (last resort)
-- AAC-в-MP4 encoder за замовчуванням (`MediaCodec` + `MediaMuxer`), WAV опційно.
-- Foreground service `type=specialUse` + invisible 1×1 overlay для FGS-from-background bypass на Android 14+.
-- Material 3 Expressive UI (theme, motion, shape morphing, wavy LoadingIndicator, FloatingToolbar).
-- 4 екрани: Onboarding, Primary (recordings list), Playback, Settings.
-- Auto-start recording на `OFFHOOK` через `CallStateReceiver`.
-- Контакти і call log resolution для metadata записів.
-- Mix-to-stereo export з кастомним balance (для share-діалогу плеєра).
-- Waveform view (peak-amplitude reducer + Canvas, тап і драг для seek).
-- Транскрипція через user-configured OpenAI-compatible endpoint (default OpenRouter+Gemini Flash); opt-in, вимкнена без API ключа.
-- Tap any transcript bubble для seek+play цього сегменту.
-- MediaSession + MediaStyle notification з transport buttons і BT-headset media keys.
-- Notification про збережений запис після кожного дзвінка.
-- `verifyCaller()` на КОЖНИЙ AIDL-виклик: UID + SHA-256 release-cert pin.
-- Per-app мовний конфіг (Android 13+) — наразі лише uk-UA.
+### 新增
+- `:aidl/IRecorderService` AIDL 桥接，连接 app 进程和 Shizuku UserService。
+- 带 `daemon=true` 的 Shizuku UserService：进程在应用从最近任务中划掉后仍然存活。
+- 通过 `WrappedShellContext` 在 shell 进程（UID 2000）中的特权录音器（伪装 `com.android.shell` 以通过 AudioFlinger 门控）。
+- 带实时可听性验证的 5 步回退链，按 `Build.FINGERPRINT` 缓存：
+  1. `VOICE_UPLINK` + `VOICE_DOWNLINK`（双路并行）
+  2. `MIC` + `VOICE_DOWNLINK`（三星友好）
+  3. `VOICE_CALL` 立体声（L=上行/R=下行）
+  4. `VOICE_CALL` 单声道
+  5. 仅 `MIC`（最后手段）
+- 默认 AAC-in-MP4 编码器（`MediaCodec` + `MediaMuxer`），WAV 可选。
+- 前台服务 `type=specialUse` + 不可见 1×1 overlay 用于 Android 14+ 后台启动 FGS 绕过。
+- Material 3 Expressive UI（主题、动效、形状变形、波浪 LoadingIndicator、FloatingToolbar）。
+- 4 个屏幕：引导页、主页（录音列表）、播放器、设置。
+- 通过 `CallStateReceiver` 在 `OFFHOOK` 时自动开始录音。
+- 联系人和通话记录解析用于录音元数据。
+- 带自定义平衡的立体声混音导出（用于播放器的分享对话框）。
+- 波形视图（峰值幅度缩减器 + Canvas，点击和拖动进行 seek）。
+- 通过用户配置的 OpenAI 兼容端点的转录（默认 OpenRouter+Gemini Flash）；主动选择加入，无 API 密钥时关闭。
+- 点击任意转录气泡以 seek+play 该分段。
+- MediaSession + MediaStyle 通知，带传输按钮和蓝牙耳机媒体键。
+- 每次通话后显示已保存录音的通知。
+- 每次 AIDL 调用执行 `verifyCaller()`：UID + SHA-256 release 证书锁定。
+- 每应用语言配置（Android 13+）— 目前仅 uk-UA。
 
-### Безпека
-- `cleartextTrafficPermitted=false` у `network_security_config.xml`.
-- `data_extraction_rules.xml` + `backup_rules.xml` блокують adb-backup і cloud-restore.
-- Hidden API exemptions scoped до 5 framework prefixes (defence-in-depth, не `""`).
-- Жодного Firebase / Crashlytics / Sentry / analytics.
+### 安全
+- `network_security_config.xml` 中 `cleartextTrafficPermitted=false`。
+- `data_extraction_rules.xml` + `backup_rules.xml` 阻止 adb 备份和云端恢复。
+- Hidden API 豁免限定于 5 个 framework 前缀（纵深防御，非 `""`）。
+- 无任何 Firebase / Crashlytics / Sentry / analytics。
 
-### Відомі обмеження
-- Тільки uk-UA локаль.
-- VoIP (WhatsApp/Telegram/Viber/Signal) принципово не підтримується — telephony audio path не задіяний.
-- Bluetooth-гарнітура під час дзвінка може зламати запис на деяких HAL.
-- Samsung One UI 5.1+ потребує fallback на MIC-only стратегії — VOICE_* з shell UID повертає тишу.
+### 已知限制
+- 仅 uk-UA 语言。
+- VoIP（WhatsApp/Telegram/Viber/Signal）原则上不支持——不涉及电话音频路径。
+- 通话中使用蓝牙耳机可能在某些 HAL 上破坏录音。
+- 三星 One UI 5.1+ 需要回退到 MIC-only 策略——shell UID 下 VOICE_* 返回静音。
 
 [Unreleased]: https://github.com/LyoSU/cally/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/LyoSU/cally/compare/v0.4.1...v0.5.0

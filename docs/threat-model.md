@@ -1,119 +1,119 @@
-# Threat model
+# 威胁模型
 
-Цей документ — про те, від чого cally захищає, від чого **не захищає**, і чому. Privacy-tool без чіткого threat model = false sense of security.
+本文档说明 Cally 防御什么、**不防御**什么，以及为什么。没有清晰威胁模型的隐私工具 = 虚假的安全感。
 
-## Цільова аудиторія (хто типовий користувач)
+## 目标用户（典型用户画像）
 
-Three personas, що визначають design trade-offs:
+三种用户画像，决定了设计上的权衡取舍：
 
-1. **Privacy-conscious individual** — хоче зберегти свої розмови (медичні консультації, банківські переговори, договірні домовленості усно). Не довіряє Google native call recording. Не може / не хоче рутувати телефон.
-2. **Журналіст / дослідник у воєнний час** — потребує evidence-grade записи інтерв'ю / комунікацій з джерелами. Загроза — RU/BY surveillance, withdraw запитів від influence-операцій, hardware compromise.
-3. **Юрист / consultant** — потребує chain-of-custody-friendly записи переговорів для подальшого використання у судовій справі. Загроза — tampering, plausible deniability, корупційний тиск.
+1. **注重隐私的个人用户** — 希望保存自己的通话（医疗咨询、银行谈判、口头协议约定）。不信任 Google 原生通话录音。不能/不想 root 手机。
+2. **战时记者/研究人员** — 需要证据级别的采访/与消息源的通话录音。威胁来自 RU/BY 监控、影响力操作的撤回请求、硬件入侵。
+3. **律师/顾问** — 需要便于建立保管链的谈判录音，供法庭案件使用。威胁来自篡改、可否认性、腐败压力。
 
-## Threat actors і їх можливості
+## 威胁行为者及其能力
 
-### T1. Скорпорейтні surveillance (Google, Meta, etc.)
+### T1. 企业监控（Google、Meta 等）
 
-**Можливості:** Google контролює AOSP, Pixel firmware, Phone app, Play Services, Android update channel.
+**能力：** Google 控制 AOSP、Pixel 固件、Phone 应用、Play Services、Android 更新渠道。
 
-**Що ми робимо проти:**
-- Не використовуємо Google services. Жодного Firebase / Crashlytics / Play Services API.
-- Не на Play Store (не дамо Google можливість banning + видалення з пристроїв через Play Protect).
-- HTTPS only для STT (не зливаємо bearer-token незашифровано).
-- AudioRecord створюється не через Phone app — мінімізуємо шлях, де Google може hook'нутись.
+**我们做了什么防御：**
+- 不使用 Google services。无任何 Firebase / Crashlytics / Play Services API。
+- 不上架 Play Store（不给 Google banning + 通过 Play Protect 从设备上删除的机会）。
+- 仅 HTTPS 用于 STT（不泄露明文 bearer-token）。
+- AudioRecord 不通过 Phone 应用创建——最小化 Google 可 hook 的路径。
 
-**Що ми не робимо:**
-- Не захищаємо від Google Play Protect (якщо встановлено) marking app як «harmful» — користувач може мусити dismiss warning.
-- Не захищаємо від firmware-level capture з боку OEM (Samsung Knox, Xiaomi MIUI tracker, etc.).
-- Не захищаємо від breaking change з боку AOSP — наступне Android-оновлення може closed bypass.
+**我们没有防御的：**
+- 不防御 Google Play Protect（如已安装）将应用标记为"有害"——用户可能需要手动解除警告。
+- 不防御 OEM 的固件级捕获（Samsung Knox、Xiaomi MIUI tracker 等）。
+- 不防御 AOSP 的破坏性变更——下一次 Android 更新可能关闭绕过方案。
 
-### T2. State-level adversary (RU, BY, ін. authoritarian regimes)
+### T2. 国家级对手（俄罗斯、白俄罗斯等其他威权政权）
 
-**Можливості:** legal compulsion of cloud providers, network-level traffic analysis, malware deployment targeting specific individuals.
+**能力：** 对云服务商的法律强制、网络级流量分析、针对特定个人的恶意软件部署。
 
-**Що ми робимо проти:**
-- Audio stays on-device by default (без введення API key — нуль network).
-- Self-hosted endpoint опція — повністю усуває cloud залежність.
-- Backup-rules excludes — нема cloud-replication через Google.
-- `verifyCaller()` + signing pin — не дозволяє іншому Shizuku-permitted додатку тихо bind'нутись до нашого daemon.
+**我们做了什么防御：**
+- 默认音频仅在设备本地（未输入 API key 前——零网络）。
+- 自托管端点选项——完全消除云依赖。
+- backup-rules 排除——不通过 Google 进行云端复制。
+- `verifyCaller()` + 签名锁定——阻止其他 Shizuku 授权应用静默绑定到我们的守护进程。
 
-**Що ми не робимо:**
-- Не захищаємо від physical seizure з розблокованим телефоном (записи в app sandbox видимі через `pm list packages` + `/data/data/...`).
-- Не захищаємо від forensic image знятого з вимкнутого rooted телефона.
-- Не захищаємо від targeted malware на тому ж пристрої з root.
-- Не захищаємо від traffic analysis (timing/size) при cloud-транскрипції — pattern «дзвінок → за 5хв payload ~5MB на known endpoint» легко детектується passive observer'ом на мережі.
+**我们没有防御的：**
+- 不防御物理扣押已解锁的手机（app sandbox 中的录音可通过 `pm list packages` + `/data/data/...` 查看）。
+- 不防御从关机已 root 手机中提取的 forensic 镜像。
+- 不防御同一设备上具有 root 权限的定向恶意软件。
+- 不防御云转录时的流量分析（时序/大小）——"通话 → 5 分钟后 ~5MB 负载发往已知端点"的模式很容易被网络上的被动观察者检测到。
 
-### T3. Jealous spouse / corporate espionage / targeted opportunist
+### T3. 嫉妒的配偶/商业间谍/定向机会主义者
 
-**Можливості:** physical access to unlocked phone for short period, social engineering, ADB exploitation.
+**能力：** 短时间物理接触已解锁手机、社会工程学、ADB 利用。
 
-**Що ми робимо проти:**
-- App-private storage — нероутова shell з sideload'нутого malware не дотягнеться до записів без явного доступу.
-- ADB backup disabled у `backup_rules.xml`.
-- Persistent recording notification (`setOngoing(true)`, `VISIBILITY_PUBLIC`) — не приховуємо факт активного запису.
+**我们做了什么防御：**
+- App 私有存储——无 root 的 shell（来自侧载恶意软件）没有显式访问权限无法接触到录音。
+- `backup_rules.xml` 中禁用 ADB 备份。
+- 持续的录音通知（`setOngoing(true)`、`VISIBILITY_PUBLIC`）——不隐藏正在录音的事实。
 
-**Що ми не робимо:**
-- Не лочимо додаток PIN'ом / biometric (планується у v0.x). Будь-хто з розблокованим телефоном може відкрити і прослухати.
-- Не шифруємо записи на диску — vault feature на roadmap, не у v0.1.0.
-- API ключ STT зберігається plaintext у DataStore (sandbox). Корінний adversary витягне.
+**我们没有防御的：**
+- 不用 PIN/生物识别锁定应用（计划在 v0.x 中实现）。任何能解锁手机的人都可以打开并播放录音。
+- 不加密磁盘上的录音——vault 功能在路线图上，不在 v0.1.0 中。
+- STT API 密钥以明文存储在 DataStore（sandbox）中。已 root 的攻击者可提取。
 
-### T4. Сам користувач, що ловиться у all-party-consent юрисдикції
+### T4. 在多方同意司法管辖区中无意违法的用户本人
 
-**Можливості:** сам користувач випадково записує без відома співрозмовника у юрисдикції, що цього вимагає.
+**能力：** 用户本人在要求通知的司法管辖区中，意外地在未通知对方的情况下录音。
 
-**Що ми робимо:**
-- README → Юридичний контекст + Користувачам поза Україною — попередження про різні правові режими.
-- Notification про активний запис ВИДИМА (`VISIBILITY_PUBLIC`) — не приховуємо запис від співрозмовника якщо він гляне на екран.
-- Onboarding hint про legal disclaimer.
+**我们做了什么：**
+- README → 法律背景 + 乌克兰以外用户——关于不同法律制度的警告。
+- 录音进行中的通知**可见**（`VISIBILITY_PUBLIC`）——如果对方看到屏幕，不会隐藏录音事实。
+- 引导页中的法律免责提示。
 
-**Що ми не робимо:**
-- Не emit'ємо disclosure beep автоматично — це політичне рішення (UA legal context не вимагає, embedding це у tool суперечить privacy-by-default дизайну). Користувач може ввімкнути ringtone-через-speaker самостійно якщо хоче.
-- Не визначаємо локацію автоматично, щоб не накласти юрисдикційний gating.
+**我们没有做的：**
+- 不会自动发出披露提示音——这是政治决策（乌克兰法律背景不要求，将其嵌入工具违反默认隐私设计理念）。用户如需要可自行通过扬声器播放铃声。
+- 不自动检测位置，以避免施加司法管辖区门控。
 
-### T5. Compromise через ланцюг постачання (supply chain)
+### T5. 供应链入侵
 
-**Можливості:** malicious dependency, malicious commit після compromise maintainer account.
+**能力：** 恶意依赖、维护者账户被入侵后的恶意提交。
 
-**Що ми робимо проти:**
-- GPL-3.0 + публічний source — хто завгодно може audit.
-- `gradle/libs.versions.toml` — single source of truth для версій залежностей. Easier to audit.
-- Жодних binary blobs у source (немає prebuilt .aar / .so).
-- Signing key — окремий від dev-машини, signing config gitignored.
-- Reproducible build — у roadmap (потрібен на v1.0 для F-Droid).
+**我们做了什么防御：**
+- GPL-3.0 + 公开源码——任何人都可以审计。
+- `gradle/libs.versions.toml` — 依赖版本的单一事实来源，更易于审计。
+- 源码中无二进制 blob（无预编译的 .aar / .so）。
+- 签名密钥——与开发机器分离，签名配置已 gitignored。
+- 可复现构建——在路线图上（v1.0 需要用于 F-Droid）。
 
-**Що ми не робимо:**
-- Не verify checksum'и transitive dependencies. Compromise maven central артефакту detect'нути не вміємо.
-- Не маємо CI з ізольованою signing-машиною (signing локально у автора).
-- Single-maintainer проєкт — bus factor 1. Якщо автор compromised, projект compromised.
+**我们没有防御的：**
+- 不验证传递依赖的校验和。无法检测 Maven Central 上的已入侵 artifact。
+- 没有带隔离签名机的 CI（签名在作者本地进行）。
+- 单人维护者项目——bus factor 为 1。如果作者被入侵，项目即被入侵。
 
-## Out-of-scope
+## 超出范围
 
-cally **навмисно не намагається** захистити від:
+Cally **有意不尝试**防御以下威胁：
 
-1. **Compromised телефон** (root malware, OEM backdoor, hardware-level keylogger).
-2. **Compromised endpoint provider** при cloud-транскрипції — вибір endpoint це ваша відповідальність.
-3. **Voice cloning / deepfake risk** — cally робить запис, але якщо хтось використає цей запис щоб клонувати ваш голос для шахрайства, це не наша поверхня атаки.
-4. **Network analysis traffic correlation** — Tor support не плануємо, бо OpenAI-compat endpoints зазвичай Tor-блокують.
-5. **VoIP** — фундаментально неможливо без accessibility-tap або system app status. Telegram/WhatsApp/Signal принципово вимикаються.
-6. **Recording-detection by counterparty** — деякі мобільні платформи вже додають watermark / inaudible signal детекції що йде запис. Ми не fight з цим. Якщо counterparty детектує — to bad.
+1. **已入侵的手机**（root 恶意软件、OEM 后门、硬件级键盘记录器）。
+2. **云转录时端点提供商被入侵**——选择哪个端点是用户的责任。
+3. **声音克隆/Deepfake 风险**——Cally 负责录音，但如果有人用录音克隆你的声音进行诈骗，这不是我们的攻击面。
+4. **网络分析流量关联**——不计划 Tor 支持，因为 OpenAI 兼容端点通常屏蔽 Tor。
+5. **VoIP**——在没有无障碍服务点击或系统应用身份的情况下，根本不可能实现。Telegram/WhatsApp/Signal 原则上被排除。
+6. **被对方检测到录音**——某些移动平台已添加水印/听不见的检测信号来标记录音。我们不与此对抗。如果对方检测到了——那也没办法。
 
-## Ризики, що залишаються відкритими (відомі gaps)
+## 仍存在的开放风险（已知差距）
 
-- ❌ Encrypted vault — поточно нема. Записи у app-private storage, але незашифровані.
-- ❌ App-lock (PIN/biometric) — нема.
-- ❌ Tamper-evidence (chain-of-custody) — нема hash-chain між сегментами.
-- ❌ Reproducible build — нема.
-- ❌ Multiple maintainers — нема.
-- ❌ Hardware-keyed encryption — нема StrongBox / Titan integration.
-- ❌ TLS pinning — використовуємо системний trust store. MITM з compromised CA можливий (low likelihood).
+- ❌ 加密保险库——目前没有。录音在 app 私有存储中，但未加密。
+- ❌ 应用锁（PIN/生物识别）——没有。
+- ❌ 防篡改证据（保管链）——片段之间没有哈希链。
+- ❌ 可复现构建——没有。
+- ❌ 多名维护者——没有。
+- ❌ 硬件密钥加密——没有 StrongBox / Titan 集成。
+- ❌ TLS 固定——使用系统信任存储。通过已入侵 CA 的 MITM 可能（低概率）。
 
-Усі ці gaps — у roadmap. Не приховуємо.
+所有这些差距都在路线图上。不隐藏。
 
-## Що користувач може робити сам для покращення
+## 用户可自行采取的改进措施
 
-1. **Не активуйте cloud-транскрипцію** якщо вам не комфортно з тим що audio передається на endpoint. Транскрипт можна записати руками з прослуховування.
-2. **Self-host endpoint** якщо потрібна транскрипція без cloud — vLLM-Omni з Qwen2.5-Omni-7B або vLLM з Gemma 4 audio-multimodal на власному GPU-сервері (потрібен endpoint що підтримує OpenAI chat-completions з `input_audio`).
-3. **Розблокуйте телефон тільки коли треба**, тримайте PIN/biometric.
-4. **Регулярно експортуйте** і чистіть старі записи (cleanup-job вже це робить за політикою).
-5. **Перевіряйте notification** — якщо запис активний а ви цього не очікуєте, щось не так.
-6. **GitHub releases SHA-256** — verify checksum завантаженого APK перед install.
+1. **不要启用云转录**，如果你对音频传输到端点感到不安。可以通过听录音手动记录转录。
+2. **自托管端点**，如需转录但不想上云——在自己的 GPU 服务器上运行 vLLM-Omni with Qwen2.5-Omni-7B 或 vLLM with Gemma 4 audio-multimodal（需要支持带 `input_audio` 的 OpenAI chat-completions 端点）。
+3. **仅在需要时解锁手机**，保持 PIN/生物识别锁。
+4. **定期导出**并清理旧录音（cleanup-job 已按策略执行此操作）。
+5. **检查通知**——如果录音正在运行而你未预期，说明有问题。
+6. **GitHub releases SHA-256**——安装前验证下载 APK 的校验和。

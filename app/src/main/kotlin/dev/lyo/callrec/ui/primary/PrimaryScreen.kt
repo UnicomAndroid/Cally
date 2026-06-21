@@ -905,17 +905,19 @@ private fun RecordingRow(
     }
 }
 
+@Composable
 private fun subtitle(rec: CallRecord): String {
     val durMs = (rec.endedAt ?: rec.startedAt) - rec.startedAt
     val secs = (durMs / 1000).coerceAtLeast(0)
-    val dur = if (secs >= 60) "%d:%02d".format(secs / 60, secs % 60) else "${secs}с"
+    val dur = if (secs >= 60) "%d:%02d".format(secs / 60, secs % 60)
+        else stringResource(R.string.duration_seconds_short, secs)
     val parts = mutableListOf(dur)
     rec.contactNumber?.takeIf { it.isNotBlank() && rec.contactName != null }?.let { parts.add(it) }
     return parts.joinToString("  •  ")
 }
 
 private val VOICE_MEMO_FMT =
-    DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.forLanguageTag("uk"))
+    DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.getDefault())
         .withZone(ZoneId.systemDefault())
 
 private fun isVoiceMemo(rec: CallRecord): Boolean = rec.mode == MODE_VOICE_MEMO
@@ -1147,7 +1149,7 @@ private fun groupByBucket(
     val weekStart = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val monthStart = today.withDayOfMonth(1)
 
-    val monthFmt = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.forLanguageTag("uk"))
+    val monthFmt = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())
 
     val buckets = LinkedHashMap<String, MutableList<CallRecord>>()
     for (rec in items) {
@@ -1158,7 +1160,7 @@ private fun groupByBucket(
             !date.isBefore(weekStart) -> ctx.getString(R.string.primary_bucket_week)
             !date.isBefore(monthStart) -> ctx.getString(R.string.primary_bucket_month)
             else -> monthFmt.format(date)
-                .replaceFirstChar { it.titlecase(Locale.forLanguageTag("uk")) }
+                .replaceFirstChar { it.titlecase(Locale.getDefault()) }
         }
         buckets.getOrPut(label) { mutableListOf() }.add(rec)
     }

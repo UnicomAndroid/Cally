@@ -74,7 +74,7 @@ fun WaveformView(
             // via the gesture explorer. Without this, the Canvas is silent
             // to screen readers.
             .semantics {
-                contentDescription = "Прогрес відтворення"
+                contentDescription = "播放进度"
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     current = progress.coerceIn(0f, 1f),
                     range = 0f..1f,

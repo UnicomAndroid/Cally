@@ -46,7 +46,7 @@ private class CloudTranscriber(private val settings: AppSettings) : Transcriber 
         val key = settings.sttApiKey.first()
         val model = settings.sttModel.first()
         require(key.isNotBlank()) {
-            "API ключ не вказаний. Налаштування → Транскрипція → API ключ."
+            "未设置 API 密钥。请前往 设置 → 转录 → API 密钥 进行配置。"
         }
 
         // Send the actual container name. Gemini's OpenAI-compat layer
@@ -85,7 +85,7 @@ private class CloudTranscriber(private val settings: AppSettings) : Transcriber 
             L.d("STT", "code=$code body.len=${body.length}")
             if (code !in 200..299) {
                 L.w("STT", "HTTP $code (body length=${body.length})")
-                error("HTTP $code від ${url.host}")
+                error("HTTP $code 来自 ${url.host}")
             }
             parseTranscript(body)
         } finally {
@@ -191,74 +191,69 @@ private class CloudTranscriber(private val settings: AppSettings) : Transcriber 
         // memos with several people present the model can lift names from
         // the conversation itself ("Привіт Олю!" → speaker B label "Оля").
         private val PROMPT = """
-            Транскрибуй цей запис аудіо. Розпізнавай мову автоматично
-            (українська / російська / англійська / суміш — зберігай як є).
+            转写这段音频。自动识别语言（中文 / 英文 / 混合 — 保留原文）。
 
-            Аудіо — моно з ВИРІВНЯНИМИ рівнями обох сторін. Канальних підказок
-            у файлі немає, розрізняй спікерів ВИКЛЮЧНО за акустичними ознаками
-            голосу (висота / тембр / темп / манера).
+            音频为单声道，双方电平已均衡。文件中无声道提示，
+            请仅根据声学特征区分说话人（音高 / 音色 / 语速 / 说话习惯）。
 
-            Розпізнавай ОКРЕМО кожного спікера:
-            • Якщо це телефонний дзвінок (характерне phone-line звучання,
-              діалог двох людей): рівно ДВА спікери. id "ME" — той хто
-              говорить ближче і чистіше (мікрофонний бік), label "Я";
-              id "THEM" — інший голос, label "Співрозмовник" (або імʼя якщо
-              звучить у розмові).
-            • Якщо це звичайний аудіозапис з кількома голосами: створи
-              окремий запис у speakers на КОЖЕН різний голос. id — короткі
-              ярлики "A", "B", "C"… label — імʼя якщо чути ("Оля", "Микола"),
-              інакше "Спікер 1", "Спікер 2"…
-            • Тон, pitch, темп і манера мовлення — головні ознаки розрізнення.
-              Не плутай зміну гучності або емоції одного й того ж спікера з
-              різними людьми. Жінка vs чоловік — майже завжди різні id.
-            • НЕ зливай весь діалог на одного спікера лише тому що один голос
-              трохи виразніший за інший. Якщо ти чуєш дві відмінні голосові
-              характеристики — це двоє людей.
+            分别识别每一位说话人：
+            • 如果是电话通话（典型的电话线路音质、两人对话）：
+              恰好两位说话人。id "ME" — 声音更近更清晰的一方（麦克风侧），
+              label "我"；id "THEM" — 另一方声音，label "对方"
+              （如对话中提到名字则用名字）。
+            • 如果是普通多人大录音：为每个不同的声音在 speakers 中
+              单独创建条目。id — 简短标签 "A"、"B"、"C"…
+              label — 如听到名字则用名字（"小明"、"李总"），
+              否则用"发言人 1"、"发言人 2"…
+            • 音调、音高、语速和说话习惯是区分的主要依据。
+              不要将同一人因情绪或音量变化而误判为不同人。
+              女声 vs 男声 — 几乎总是不同的 id。
+            • 不要因为某一方声音略大就将整段对话合并到一个人身上。
+              如果你听到两种明显不同的声音特征 — 那就是两个人。
 
-            Поле "title" — короткий опис змісту запису (до 60 символів),
-            українською, без лапок і емодзі. Як назва нотатки. Приклади:
-            "Розмова з Олею про вечерю", "Список покупок і плани", "Лекція з
-            алгоритмів, кінець семестру". Якщо запис без мовлення — "Без мовлення".
+            "title" 字段 — 录音内容的简短摘要（不超过 60 个字符），
+            用中文，不加引号和表情符号。像笔记标题一样。示例：
+            "和小明讨论周末计划"、"项目周会，讨论上线时间"、
+            "算法课期末复习重点"。如果录音中没有语音 — "无语音内容"。
 
-            Поверни ВИКЛЮЧНО JSON-обʼєкт у такій формі (без markdown-fences):
+            仅返回 JSON 对象，格式如下（不要用 markdown 代码块包裹）：
             {
-              "title": "Короткий опис",
-              "language": "uk",
+              "title": "简短摘要",
+              "language": "zh",
               "duration_sec": 142.5,
               "speakers": [
-                {"id": "A", "label": "Я"},
-                {"id": "B", "label": "Оля"}
+                {"id": "A", "label": "我"},
+                {"id": "B", "label": "小明"}
               ],
               "segments": [
                 {
                   "start": 0.0,
                   "end": 3.2,
                   "speaker_id": "A",
-                  "text": "Привіт, як справи?",
+                  "text": "你好，最近怎么样？",
                   "tone": "friendly",
                   "non_speech": ["laugh"]
                 }
               ]
             }
 
-            Правила:
-            • title — обовʼязково, не порожній.
-            • speakers і segments узгоджені: кожен speaker_id має існувати у speakers.
-            • Розбивай на репліки. Зливай короткі підряд-репліки одного спікера
-              якщо вони на одну тему.
-            • non_speech: лише помітні звуки (laugh, sigh, cough, pause,
-              background_music, background_voice).
-            • tone: friendly|tense|neutral|excited|sad|angry|questioning або null.
-            • Не вигадуй текст — якщо нерозбірливо, постав "[нерозбірливо]".
-            • Жодних коментарів, заголовків поза JSON — тільки сам обʼєкт.
+            规则：
+            • title — 必填，不能为空。
+            • speakers 和 segments 必须对应：每个 speaker_id 必须在 speakers 中存在。
+            • 按话轮拆分。同一说话人同一话题的连续短句可以合并。
+            • non_speech：仅记录明显的声音（laugh, sigh, cough, pause,
+              background_music, background_voice）。
+            • tone：friendly|tense|neutral|excited|sad|angry|questioning 或 null。
+            • 不要编造文字 — 如果听不清，标记为"[听不清]"。
+            • 不要在 JSON 之外添加任何注释或标题 — 只输出 JSON 对象本身。
         """.trimIndent()
     }
 
     private fun parseTranscript(body: String): String {
         val root = JSONObject(body)
-        val choices = root.optJSONArray("choices") ?: error("Відповідь без choices")
-        if (choices.length() == 0) error("Порожній choices у відповіді")
-        val msg = choices.getJSONObject(0).optJSONObject("message") ?: error("Без message в choices[0]")
+        val choices = root.optJSONArray("choices") ?: error("响应中缺少 choices")
+        if (choices.length() == 0) error("响应中 choices 为空")
+        val msg = choices.getJSONObject(0).optJSONObject("message") ?: error("choices[0] 中缺少 message")
         // Some providers return content as string, others as list of parts.
         return when (val c = msg.opt("content")) {
             is String -> c.trim()
@@ -270,7 +265,7 @@ private class CloudTranscriber(private val settings: AppSettings) : Transcriber 
                 }
                 sb.toString().trim()
             }
-            else -> error("Невідомий формат content")
+            else -> error("未知的 content 格式")
         }
     }
 }

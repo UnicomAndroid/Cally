@@ -908,9 +908,9 @@ private fun MetaRow(path: String) {
     val f = remember(path) { File(path) }
     val ext = remember(path) { path.substringAfterLast('.', "").lowercase(Locale.US) }
     val codec = when (ext) {
-        "wav" -> "WAV PCM"
-        "m4a", "mp4", "aac" -> "AAC"
-        "ogg", "opus" -> "OPUS"
+        "wav" -> stringResource(R.string.playback_codec_wav)
+        "m4a", "mp4", "aac" -> stringResource(R.string.playback_codec_aac)
+        "ogg", "opus" -> stringResource(R.string.playback_codec_opus)
         else -> ext.uppercase(Locale.US).ifEmpty { "?" }
     }
     val bytes = remember(path) { runCatching { f.length() }.getOrDefault(0L) }
@@ -1106,7 +1106,7 @@ private data class SpeakerAccent(
 
 /**
  * Order in `speakers` drives palette assignment. The first speaker — by
- * convention "Я"/ME for phone calls or the dominant voice for voice memos —
+ * convention "我"/ME for phone calls or the dominant voice for voice memos —
  * gets `primaryContainer` from the active scheme and right alignment,
  * mirroring "own messages" in a chat client. Subsequent speakers each draw
  * from a curated 8-hue palette so even meetings with 4–5 distinct voices
@@ -1169,10 +1169,11 @@ private fun chatAccents(dark: Boolean): List<SpeakerAccent> = if (dark) {
     )
 }
 
+@Composable
 private fun legacyDisplayLabel(id: String): String = when (id) {
-    dev.lyo.callrec.transcription.Transcript.LEGACY_ME -> "Я"
-    dev.lyo.callrec.transcription.Transcript.LEGACY_THEM -> "Співрозмовник"
-    dev.lyo.callrec.transcription.Transcript.LEGACY_UNKNOWN -> "—"
+    dev.lyo.callrec.transcription.Transcript.LEGACY_ME -> stringResource(R.string.transcript_speaker_me)
+    dev.lyo.callrec.transcription.Transcript.LEGACY_THEM -> stringResource(R.string.transcript_speaker_them)
+    dev.lyo.callrec.transcription.Transcript.LEGACY_UNKNOWN -> stringResource(R.string.transcript_speaker_unknown)
     else -> id
 }
 
@@ -1253,8 +1254,14 @@ private fun ChatSegment(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     if (seg.nonSpeech.isNotEmpty()) {
+                        val items = seg.nonSpeech
+                        val sb = StringBuilder()
+                        for (i in items.indices) {
+                            if (i > 0) sb.append(", ")
+                            sb.append("[${nonSpeechLabel(items[i])}]")
+                        }
                         Text(
-                            seg.nonSpeech.joinToString(", ") { "[${nonSpeechLabel(it)}]" },
+                            sb.toString(),
                             style = MaterialTheme.typography.labelSmall,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                             color = bubbleFg.copy(alpha = 0.6f),
@@ -1298,7 +1305,7 @@ private fun ChatSegment(
 
 @Composable
 private fun SpeakerAvatar(label: String, accent: SpeakerAccent) {
-    val initial = label.trim().firstOrNull { it.isLetter() }?.uppercase() ?: "?"
+    val initial = label.trim().firstOrNull { it.isLetter() }?.uppercase() ?: stringResource(R.string.contact_initial_fallback)
     Box(
         modifier = Modifier
             .size(32.dp)
@@ -1315,23 +1322,25 @@ private fun SpeakerAvatar(label: String, accent: SpeakerAccent) {
     }
 }
 
+@Composable
 private fun toneLabel(t: String): String = when (t.lowercase()) {
-    "friendly" -> "тепло"
-    "tense" -> "напружено"
-    "excited" -> "захоплено"
-    "sad" -> "сумно"
-    "angry" -> "зло"
-    "questioning" -> "питально"
-    "neutral" -> "нейтрально"
+    "friendly" -> stringResource(R.string.transcript_tone_friendly)
+    "tense" -> stringResource(R.string.transcript_tone_tense)
+    "excited" -> stringResource(R.string.transcript_tone_excited)
+    "sad" -> stringResource(R.string.transcript_tone_sad)
+    "angry" -> stringResource(R.string.transcript_tone_angry)
+    "questioning" -> stringResource(R.string.transcript_tone_questioning)
+    "neutral" -> stringResource(R.string.transcript_tone_neutral)
     else -> t
 }
 
+@Composable
 private fun nonSpeechLabel(s: String): String = when (s.lowercase()) {
-    "laugh" -> "сміх"
-    "sigh" -> "зітхання"
-    "pause" -> "пауза"
-    "cough" -> "кашель"
-    "background_music" -> "музика"
-    "background_voice" -> "голос на фоні"
+    "laugh" -> stringResource(R.string.transcript_nonspeech_laugh)
+    "sigh" -> stringResource(R.string.transcript_nonspeech_sigh)
+    "pause" -> stringResource(R.string.transcript_nonspeech_pause)
+    "cough" -> stringResource(R.string.transcript_nonspeech_cough)
+    "background_music" -> stringResource(R.string.transcript_nonspeech_music)
+    "background_voice" -> stringResource(R.string.transcript_nonspeech_background_voice)
     else -> s
 }

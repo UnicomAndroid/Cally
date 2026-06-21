@@ -160,7 +160,7 @@ fun LiveLevelMeter(
 }
 
 /**
- * Quality pill — "Найкраща якість" / "Хороша якість" / "Часткова". Compact
+ * Quality pill — "最佳质量" / "良好质量" / "部分质量". Compact
  * variant used inside the status hero. Reflects [hasDownlink] and the
  * recorder strategy class without exposing the underlying enum.
  */

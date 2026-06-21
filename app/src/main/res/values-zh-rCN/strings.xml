@@ -1,0 +1,263 @@
+<resources>
+    <string name="app_name">Cally</string>
+    <string name="app_tagline">无妥协通话录音</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Shizuku通话录音</string>
+    <string name="onboarding_step_install">安装 Shizuku</string>
+    <string name="onboarding_step_install_desc">免root免费特权访问工具</string>
+    <string name="onboarding_step_activate">激活Shizuku</string>
+    <string name="onboarding_step_activate_desc">通过无线调试 — 无需USB线。</string>
+    <string name="onboarding_step_grant">允许应用</string>
+    <string name="onboarding_step_grant_desc">仅一次 — 不再询问。</string>
+    <string name="onboarding_continue">继续</string>
+    <string name="onboarding_open_shizuku">打开 Shizuku</string>
+
+    <!-- Primary screen -->
+    <string name="home_status_no_shizuku">Shizuku 未激活</string>
+    <string name="home_recordings_empty">暂无记录</string>
+    <string name="home_action_settings">设置</string>
+    <string name="primary_search_placeholder">按姓名或号码搜索</string>
+    <string name="primary_select">选择</string>
+    <string name="primary_selection_count">%1$d 已选</string>
+    <string name="primary_filter_all">所有</string>
+    <string name="primary_filter_today">今天</string>
+    <string name="primary_filter_week">本周</string>
+    <string name="primary_filter_favorites">已选</string>
+    <string name="primary_fab_record">记录</string>
+    <string name="primary_empty_hint">通话自动录音。或点击顶部麦克风手动开始。</string>
+    <string name="primary_empty_search">未找到“%1$s”</string>
+    <string name="primary_empty_filter_title">此样本为空</string>
+    <string name="primary_empty_filter_hint">试试其他筛选或重置搜索</string>
+    <string name="primary_bucket_today">今天</string>
+    <string name="primary_bucket_yesterday">昨天</string>
+    <string name="primary_bucket_week">本周</string>
+    <string name="primary_bucket_month">本月</string>
+
+    <!-- Recording -->
+    <string name="recording_uplink">您的语音</string>
+    <string name="recording_downlink">对话者</string>
+    <string name="recording_stop">停止</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_recording">活动记录</string>
+    <string name="notif_channel_recording_desc">通话录音持续通知</string>
+    <string name="notif_channel_status">Shizuku 状态</string>
+    <string name="notif_channel_status_desc">连接问题通知</string>
+    <string name="notif_recording_title">正在录制通话</string>
+    <string name="notif_recording_text_dual">双音轨：您的声音 + 对方</string>
+    <string name="notif_recording_text_single">一条轨道</string>
+    <string name="notif_recording_action_stop">停止</string>
+
+    <string name="notif_channel_completed">已完成记录</string>
+    <string name="notif_channel_completed_desc">刚录通话链接通知</string>
+    <string name="notif_completed_title">通话已录音</string>
+    <string name="notif_completed_text_with_contact">%1$s · %2$s</string>
+    <string name="notif_completed_text_anonymous">时长 %1$s · 点击打开</string>
+
+    <string name="notif_channel_playback">播放器</string>
+    <string name="notif_channel_playback_desc">从通知栏和锁屏控制录制播放</string>
+
+    <!-- Recording row actions (shared by primary screen) -->
+    <string name="library_share">分享</string>
+    <string name="library_delete">删除</string>
+    <string name="library_deleted">记录已删除</string>
+    <string name="library_delete_bulk_msg">删除 %1$d 条记录？文件将被永久删除。</string>
+
+    <!-- Playback -->
+    <string name="playback_play">播放</string>
+    <string name="playback_pause">暂停</string>
+    <string name="playback_skip_back">后退10秒</string>
+    <string name="playback_skip_forward">快进10秒</string>
+    <string name="playback_speed_label">速度</string>
+    <string name="playback_share">分享</string>
+    <string name="playback_share_title">如何分享？</string>
+    <string name="playback_share_subtitle">立体声——一个文件，您的语音在左，对方在右。单独——两个单声道音轨。</string>
+    <string name="playback_share_stereo">立体声 (1个文件)</string>
+    <string name="playback_share_separate">单独 (2个文件)</string>
+    <string name="playback_share_preparing">准备立体声…</string>
+    <string name="playback_delete">删除</string>
+    <string name="playback_delete_title">删除记录？</string>
+    <string name="playback_delete_message">文件与库记录将被永久删除。</string>
+    <string name="playback_delete_confirm">删除</string>
+    <string name="playback_delete_cancel">取消</string>
+    <string name="playback_back">返回</string>
+    <string name="playback_meta_dual">两条轨道</string>
+    <string name="playback_meta_single">一条轨道</string>
+    <string name="playback_notes_placeholder">笔记…</string>
+    <string name="playback_favorite_on">取消收藏</string>
+    <string name="playback_favorite_off">加入收藏</string>
+    <string name="playback_transcribe">识别语言</string>
+    <string name="playback_transcribe_running">正在发送音频到云端…</string>
+
+    <!-- Smart-status messages — human language, no jargon. -->
+    <string name="rec_status_idle">准备录制</string>
+    <string name="rec_status_probing">正在为您的设备配置录制…</string>
+    <string name="rec_status_active_dual">清晰听到双方——您和对方</string>
+    <string name="rec_status_active_single_full">同一轨道上听取两者</string>
+    <string name="rec_status_active_mic_only">仅听到您的声音 — 设备屏蔽对方</string>
+    <string name="rec_status_active_voice_memo">录制已开启</string>
+    <string name="rec_status_failed_silence">此设备上无音源发出声音</string>
+
+    <!-- Voice-memo (manual recording, no call) -->
+    <string name="voice_memo_title">语音录制</string>
+    <string name="voice_memo_subtitle_with_date">语音录音 · %1$s</string>
+    <string name="rec_quality_excellent">最佳质量</string>
+    <string name="rec_quality_good">优质</string>
+    <string name="rec_quality_partial">部分质量</string>
+
+    <!-- Accessibility — required for reliable background FG service start -->
+    <string name="accessibility_service_summary">允许自动通话录音</string>
+    <string name="accessibility_service_description">cally 使用辅助功能服务在来电时可靠地自动开始录音。不读取任何事件——该服务仅用于允许在后台启动录音。</string>
+
+    <!-- Onboarding step 5 (overlay permission for FGS-from-background) -->
+    <string name="onboarding_step_overlay">在其他应用之上</string>
+    <string name="onboarding_step_overlay_desc">悬浮窗权限——需要用于后台自动录音。我们添加一个不可见的1×1 px图层约3秒，以便Android允许在通话时开始录音。</string>
+    <string name="onboarding_step_overlay_action">允许</string>
+
+    <!-- Onboarding step 6 (battery exemption) -->
+    <string name="onboarding_step_battery">无眠</string>
+    <string name="onboarding_step_battery_desc">Samsung和Pixel会在应用不在屏幕时冻结它们。没有此权限，cally将无法自行启动来录制通话。</string>
+    <string name="onboarding_step_battery_action">允许</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_section_recording">记录</string>
+    <string name="settings_auto_record">自动通话录音</string>
+    <string name="settings_auto_record_desc">来电时自动开始录音</string>
+    <string name="settings_ringback">从拨号开始录制</string>
+    <string name="settings_ringback_desc">录音包含拨号音。关闭则仅在接听后开始。</string>
+    <string name="settings_sample_rate">录音质量</string>
+    <string name="settings_sample_rate_desc">16 кГц — 语音最佳。48 кГц — 最高质量，文件大3倍。</string>
+    <string name="settings_format">录制格式</string>
+    <string name="settings_format_desc">AAC — 文件小~5倍. WAV — 无损质量.</string>
+    <string name="settings_format_wav">WAV (无损)</string>
+    <string name="settings_format_aac">AAC (≈5×小)</string>
+    <string name="settings_section_calibration">设备校准</string>
+    <string name="settings_calibration_status">当前工作方法</string>
+    <string name="settings_calibration_unknown">未校准 — 首次通话生效</string>
+    <string name="settings_calibration_reset">重新校准</string>
+    <string name="settings_calibration_reset_desc">清除缓存 — 应用将在下次调用时重新执行所有方法。</string>
+    <string name="settings_section_about">关于应用</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_storage_path">录音文件夹</string>
+    <string name="settings_legal_title">法律警告</string>
+    <string name="settings_legal_subtitle">通话录音规则概述</string>
+
+    <!-- Legal disclaimer (first-run sheet + Settings re-read) -->
+    <string name="legal_title">录制前</string>
+    <string name="legal_intro">管辖权分三个层级。找到你的——并据此行动。这不是法律咨询。</string>
+
+    <string name="legal_tier1_title">1. 未经通知（单方同意）</string>
+    <string name="legal_tier1_summary">乌克兰, 英国, 联邦美国 + ~38个州, 加拿大, 澳大利亚, 波兰.</string>
+    <string name="legal_tier1_body">对话参与者可以在不通知对方的情况下录音。自身同意=充分同意。依据：美国联邦窃听法18 U.S.C. § 2511，英国RIPA 2000，加拿大刑法第184(2)(a)条。</string>
+
+    <string name="legal_tier2_title">2. 充分警告（所有方+默示同意）</string>
+    <string name="legal_tier2_summary">~美国11个州：加利福尼亚州、伊利诺伊州、佛罗里达州、马里兰州等。</string>
+    <string name="legal_tier2_body">完整列表：CA（刑法典§632）、FL、IL、MD、MA、MT、NV、NH、PA、WA、CT。通话开始时通知对方——若对方听见并继续，视为默认同意，录音合法。该原则经数十年判例法确立。欧盟商业热线免责声明亦采用相同机制。</string>
+
+    <string name="legal_tier3_title">3. 即使有警告也禁止（明确同意）</string>
+    <string name="legal_tier3_summary">德国、奥地利、比利时。需要明确同意 — 警告法律上不足。</string>
+    <string name="legal_tier3_body">德国 — § 201 StGB Vertraulichkeit des Wortes，未经明确许可录制“非公开言论”最高3年监禁。德国法院不承认在私人谈话中的默示同意。奥地利 — § 120 StGB。比利时 — 刑法 + 电子通信，多数情况需书面同意。在未得到对方明确“是，同意”的情况下，请勿在这些司法管辖区使用cally。</string>
+
+    <string name="legal_tech_title">cally 和 beep 对话者</string>
+    <string name="legal_tech_body">从技术上讲，我们无法向对方播放提示音或语音声明——这是 Pixel Phone 的系统级权限，第三方应用无法使用。通话开始时的口头警告仅在模式 2（默示同意）下生效。模式 3 下该警告不足，需要明确同意。</string>
+
+    <string name="legal_share">记录≠传播。用户对未经对方同意发布内容负责，即使在单方同意司法管辖区。</string>
+    <string name="legal_footer">详情与来源——项目README</string>
+    <string name="legal_action_accept">明白，继续</string>
+    <string name="legal_action_close">关闭</string>
+    <string name="settings_calibration_done">重置。下次通话将进行新校准。</string>
+
+    <!-- Settings: Cloud STT (transcription) -->
+    <string name="settings_section_transcribe">转录</string>
+    <string name="settings_transcribe_desc">通过兼容OpenAI的API进行语音识别，音频发送至所选服务。支持OpenRouter、OpenAI、Groq、本地LM Studio。</string>
+    <string name="settings_transcribe_base_url">基础URL</string>
+    <string name="settings_transcribe_api_key">API密钥</string>
+    <string name="settings_transcribe_model">型号</string>
+
+<!-- Settings: Auto-cleanup -->
+    <string name="settings_section_cleanup">自动清理</string>
+    <string name="settings_cleanup_age_title">按年龄保存</string>
+    <string name="settings_cleanup_age_desc">删除早于所选期限的记录。清理在应用启动时进行。收藏项即使超出限制也不会被删除。</string>
+    <string name="settings_cleanup_size_title">存储限制</string>
+    <string name="settings_cleanup_size_desc">当总记录数超过限制时，最旧的记录将被删除。收藏记录即使超出限制也不会被删除。</string>
+    <string name="settings_cleanup_off">不清除</string>
+    <string name="settings_cleanup_label_keep">保存:</string>
+    <string name="settings_cleanup_days_short">%1$d天</string>
+    <string name="settings_cleanup_year_short">1年</string>
+    <string name="settings_cleanup_gb_short">%1$d GB</string>
+    <string name="settings_cleanup_applied">启动时自动删除旧记录</string>
+
+    <!-- Errors -->
+    <string name="err_shizuku_denied">权限被拒绝</string>
+
+    <!-- Daemon health notifications -->
+    <string name="daemon_notinstalled_title">cally: Shizuku未安装</string>
+    <string name="daemon_notinstalled_body">点击设置</string>
+    <string name="daemon_notrunning_title">cally: Shizuku 停了</string>
+    <string name="daemon_notrunning_body">重新打开Shizuku录制通话</string>
+    <string name="daemon_nopermission_title">cally: 需要权限</string>
+    <string name="daemon_nopermission_body">点击授予Shizuku权限</string>
+    <string name="daemon_stale_title">cally: 需要重启</string>
+    <string name="daemon_stale_body">点击刷新录音机</string>
+    <string name="daemon_unhealthy_title">cally: 录音器无响应</string>
+    <string name="daemon_unhealthy_body">点击重启</string>
+    <string name="overlay_perm_missing_title">cally: 需要悬浮窗权限</string>
+    <string name="overlay_perm_missing_body">Android 14+ 未开启则无法录制</string>
+
+    <!-- Onboarding tip (used by Task 18) -->
+    <string name="onboarding_shizuku_tip_title">最佳可靠性</string>
+    <string name="onboarding_shizuku_tip_body">考虑社区Shizuku构建：自动重启+持久ADB配对。</string>
+    <string name="onboarding_shizuku_tip_cta">了解更多</string>
+
+    <!-- POST_NOTIFICATIONS rationale (used by Task 18) -->
+    <string name="onboarding_notif_perm_title">允许通知</string>
+    <string name="onboarding_notif_perm_body">需在Shizuku停止时提醒您</string>
+
+    <!-- Onboarding: system permissions step -->
+    <string name="onboarding_step_permissions">系统权限</string>
+    <string name="onboarding_step_permissions_desc">麦克风、通知、电话状态、通话记录、联系人 — 以便开始录音并显示通话对象。</string>
+    <string name="onboarding_step_permissions_action">允许</string>
+    <string name="onboarding_check_status">检查状态</string>
+    <string name="onboarding_shizuku_denied_hint"> — 打开Shizuku并手动授权。</string>
+
+    <!-- Transcript: speaker labels -->
+    <string name="transcript_speaker_me">我</string>
+    <string name="transcript_speaker_them">对方</string>
+    <string name="transcript_speaker_unknown">—</string>
+    <string name="transcript_default_speaker_label">发言人 %1$d</string>
+
+    <!-- Transcript: tone labels -->
+    <string name="transcript_tone_friendly">友好</string>
+    <string name="transcript_tone_tense">紧张</string>
+    <string name="transcript_tone_excited">兴奋</string>
+    <string name="transcript_tone_sad">悲伤</string>
+    <string name="transcript_tone_angry">生气</string>
+    <string name="transcript_tone_questioning">疑问</string>
+    <string name="transcript_tone_neutral">中性</string>
+
+    <!-- Transcript: non-speech labels -->
+    <string name="transcript_nonspeech_laugh">笑声</string>
+    <string name="transcript_nonspeech_sigh">叹息</string>
+    <string name="transcript_nonspeech_pause">暂停</string>
+    <string name="transcript_nonspeech_cough">咳嗽</string>
+    <string name="transcript_nonspeech_music">音乐</string>
+    <string name="transcript_nonspeech_background_voice">背景语音</string>
+
+    <!-- Playback: codec labels -->
+    <string name="playback_codec_wav">WAV PCM</string>
+    <string name="playback_codec_aac">AAC</string>
+    <string name="playback_codec_opus">OPUS</string>
+
+    <!-- Playback: speed format -->
+    <string name="playback_speed_format">%1$sx</string>
+
+    <!-- Format helpers -->
+    <string name="duration_seconds_short">%1$d秒</string>
+    <string name="contact_initial_fallback">?</string>
+
+    <!-- Settings -->
+    <string name="settings_version_format">%1$s (%2$d)</string>
+    <string name="settings_sample_rate_khz">%1$d kHz</string>
+</resources>

@@ -47,12 +47,12 @@ import dev.lyo.callrec.R
 import kotlinx.coroutines.launch
 
 /**
- * First-run legal placeholder, also reachable from Settings → "Юридичне
- * попередження" for a fresh re-read.
+ * First-run legal placeholder, also reachable from Settings → "法律警告"
+ * for a fresh re-read.
  *
  * Two modes via [requireAck]:
  *  - `true` (consent flow): blocks back-press, swipe-down and scrim-tap. Only
- *    the explicit "Зрозуміло" button can dismiss the sheet.
+ *    the explicit "明白，继续" button can dismiss the sheet.
  *  - `false` (settings re-read): behaves like a normal informational sheet.
  *
  * Locking is implemented by a triple-defense: `confirmValueChange` rejects the

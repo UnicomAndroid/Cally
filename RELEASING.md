@@ -1,105 +1,105 @@
-# Release process — обов'язкові правила
+# 发布流程 — 强制性规则
 
-Цей документ — **load-bearing**. Порушення правил версіонування призводить до broken upgrades у користувачів (Shizuku daemon mismatch, втрата AccessibilityService activation, signing pin mismatch).
+本文档是 **load-bearing**。违反版本管理规则会导致用户升级失败（Shizuku 守护进程不匹配、AccessibilityService 激活丢失、签名锁定不匹配）。
 
-## Правила, які НЕ опційні
+## 非可选规则
 
-### 1. CHANGELOG.md оновлюється у КОЖНОМУ user-visible PR
+### 1. 每个用户可见的 PR 都必须更新 CHANGELOG.md
 
-Кожен PR, що змінює user-visible behavior (UI, фічі, фікси, безпеку, залежності з runtime impact), **обов'язково** додає рядок у `## [Unreleased]` секцію `CHANGELOG.md` під відповідну категорію:
+每个更改用户可见行为（UI、功能、修复、安全、有运行时影响的依赖）的 PR **必须**在 `CHANGELOG.md` 的 `## [Unreleased]` 部分相应分类下添加条目：
 
-- `### Додано` — нові фічі
-- `### Змінено` — зміни поведінки існуючих фіч
-- `### Виправлено` — bug fixes
-- `### Безпека` — security-relevant зміни
-- `### Видалено` — видалені фічі / API
-- `### Застаріле (Deprecated)` — будуть видалені у наступних версіях
+- `### 新增` — 新功能
+- `### 变更` — 现有功能的行为变更
+- `### 修复` — bug 修复
+- `### 安全` — 安全相关变更
+- `### 移除` — 移除的功能 / API
+- `### 已弃用 (Deprecated)` — 将在未来版本中移除
 
-**Не оновлюються у CHANGELOG:**
-- Чисто внутрішній рефакторинг без видимих змін
-- Зміни у тестах
-- CI/build infra (без впливу на APK)
-- Документація (CONTRIBUTING / SECURITY / README — лише якщо це політика-зміна)
+**不需要更新 CHANGELOG 的情况：**
+- 纯内部重构，无可见变更
+- 测试变更
+- CI/build 基础设施（不影响 APK）
+- 文档（CONTRIBUTING / SECURITY / README — 仅限非政策变更）
 
-Якщо сумніваєтеся — оновіть. Залишити порожнім гірше, ніж зайвий рядок.
+如有疑问——更新。留空比多一行更糟糕。
 
-### 2. Version bump matrix
+### 2. 版本 bump 矩阵
 
-Дві окремі версії, що bump'ляться за різними правилами:
+两个独立的版本号，按不同规则 bump：
 
-| Що змінилось | `versionCode` (app) | `versionName` (semver) | `userServiceVersion` |
+| 变更内容 | `versionCode`（应用） | `versionName`（语义化） | `userServiceVersion` |
 |---|---|---|---|
-| Будь-який release-білд до користувачів | **+1** обов'язково | за semver | без змін |
-| Bug fix (нічого не ламає) | +1 | **patch** (0.1.0 → 0.1.1) | без змін |
-| Нова user-visible фіча, backward-compatible | +1 | **minor** (0.1.0 → 0.2.0) | без змін |
-| Breaking зміна публічного UI / data format | +1 | **major** (0.1.0 → 1.0.0) | без змін |
-| Зміна `IRecorderService.aidl` (методи, signatures, ParcelFileDescriptor semantics) | +1 | за semver | **+1 обов'язково** |
-| Зміна `AudioRecorderJob` pump semantics (sample rate handling, FD lifecycle, threading) | +1 | за semver | **+1 обов'язково** |
-| Зміна `RecorderService.verifyCaller()` логіки | +1 | за semver | **+1 обов'язково** |
-| Зміна `WrappedShellContext` ідентичності або `HiddenApiBootstrap` exemptions | +1 | за semver | **+1 обов'язково** |
-| Internal-only refactor у `:userservice` без зміни AIDL/pump/verify/wrap | +1 | за semver | за бажанням |
-| Доповнення / виправлення UI у `:app`, що не торкається `:userservice` / `:aidl` | +1 | за semver | без змін |
+| 任何面向用户的发布构建 | **+1** 强制 | 按语义化版本 | 不变 |
+| Bug 修复（不破坏任何东西） | +1 | **patch**（0.1.0 → 0.1.1） | 不变 |
+| 新的用户可见功能，向后兼容 | +1 | **minor**（0.1.0 → 0.2.0） | 不变 |
+| 公共 UI / 数据格式的破坏性变更 | +1 | **major**（0.1.0 → 1.0.0） | 不变 |
+| `IRecorderService.aidl` 变更（方法、签名、ParcelFileDescriptor 语义） | +1 | 按语义化版本 | **+1 强制** |
+| `AudioRecorderJob` pump 语义变更（采样率处理、FD 生命周期、线程） | +1 | 按语义化版本 | **+1 强制** |
+| `RecorderService.verifyCaller()` 逻辑变更 | +1 | 按语义化版本 | **+1 强制** |
+| `WrappedShellContext` 身份或 `HiddenApiBootstrap` 豁免变更 | +1 | 按语义化版本 | **+1 强制** |
+| 仅 `:userservice` 内部重构，未更改 AIDL/pump/verify/wrap | +1 | 按语义化版本 | 可选 |
+| `:app` 中的 UI 增强/修复，不涉及 `:userservice` / `:aidl` | +1 | 按语义化版本 | 不变 |
 
-**Чому `userServiceVersion`**: Shizuku daemon з `daemon=true` живе після нашого APK. Старий daemon з v=10 побачить новий APK з v=11 і респавниться. Без bump'у — daemon продовжує свою stale версію, AIDL transactions не матчаться, користувач отримує silent failure.
+**为什么需要 `userServiceVersion`**：带 `daemon=true` 的 Shizuku 守护进程在我们的 APK 退出后仍然存活。旧守护进程（v=10）看到新 APK（v=11）会重新生成。如果不 bump——守护进程继续使用其旧版本，AIDL 事务不匹配，用户遭遇静默失败。
 
-**Чому versionCode завжди +1**: Android Package Manager відмовиться оновлювати APK з тим самим versionCode (downgrade protection). Якщо ви будуєте release без bump → користувачі не зможуть оновитись поверх попереднього.
+**为什么 `versionCode` 总是 +1**：Android Package Manager 拒绝升级相同 versionCode 的 APK（降级保护）。如果你构建发布版而不 bump → 用户无法在之前版本的基础上升级。
 
-### 3. Signing identity не змінюється між релізами без явного breaking-release
+### 3. 签名身份在不同发布之间不得更改，除非是明确的破坏性发布
 
-Запитайте себе: чи готові всі користувачі **перевстановити** додаток з нуля (з втратою налаштувань і записів якщо backup-rules заборонив)?
+问自己：所有用户是否准备好**从头重新安装**应用（如果 backup-rules 禁止了备份，将丢失设置和录音）？
 
-Якщо ні — ви **НЕ можете** змінити:
+如果答案是否定的——你**不能**更改：
 
 - `keyAlias`
-- Release keystore (новий store = новий SHA-256)
+- Release keystore（新 store = 新 SHA-256）
 - `applicationId`
-- Signing config назагал
+- 整体签名配置
 
-Зміна signing → новий APK не вважається upgrade'ом → треба uninstall старого. Якщо ваш use case потребує цього (наприклад rebrand `dev.lyo.callrec` → `dev.lyo.cally`) — це **окремий major-release** з 4-6 тижнями адвансом анонс і migration tooling (export → reimport).
+更改签名 → 新 APK 不被视为升级 → 需要卸载旧版本。如果你的用例需要这样做（例如 rebrand `dev.lyo.callrec` → `dev.lyo.cally`）——这是一个**独立的 major-release**，需提前 4-6 周公告并提供迁移工具（导出 → 重新导入）。
 
-### 4. Tag формат
+### 4. Tag 格式
 
 ```
-v<MAJOR>.<MINOR>.<PATCH>          # стандартний реліз
-v<MAJOR>.<MINOR>.<PATCH>-<pre>    # pre-release: -alpha.1, -beta.2, -rc.1
+v<MAJOR>.<MINOR>.<PATCH>          # 标准发布
+v<MAJOR>.<MINOR>.<PATCH>-<pre>    # 预发布：-alpha.1, -beta.2, -rc.1
 ```
 
-Tag створюється з `main` після того як CHANGELOG секція `[Unreleased]` перейменована у `[X.Y.Z]` з датою.
+Tag 在 CHANGELOG 的 `[Unreleased]` 部分重命名为带日期的 `[X.Y.Z]` 后从 `main` 创建。
 
 ```bash
-git tag -a v0.2.0 -m "cally v0.2.0 — короткий опис"
+git tag -a v0.2.0 -m "cally v0.2.0 — 简要描述"
 git push origin v0.2.0
 ```
 
-## Release checklist (pre-flight)
+## 发布检查清单（起飞前）
 
-Перед `git tag` пройдіться:
+在 `git tag` 之前逐项检查：
 
-- [ ] Усі user-visible зміни з останнього тегу описані у `## [Unreleased]` CHANGELOG.md
-- [ ] `## [Unreleased]` перейменовано у `## [X.Y.Z] — YYYY-MM-DD`
-- [ ] У CHANGELOG.md під `## [Unreleased]` створено новий порожній заголовок з підсекціями
-- [ ] Compare-link унизу CHANGELOG.md оновлений
-- [ ] `versionCode` у `app/build.gradle.kts` bump'нуто
-- [ ] `versionName` у `app/build.gradle.kts` відповідає новому tag
-- [ ] `userServiceVersion` у `userservice/build.gradle.kts` bump'нуто якщо потрібно (див. матрицю вище)
-- [ ] `./gradlew test lintRelease assembleRelease` проходить без помилок
-- [ ] Release APK перевірено на реальному пристрої (хоча б один Pixel + один Samsung)
-- [ ] Release APK перевірено на upgrade поверх попереднього release (не fresh install)
-- [ ] Якщо змінено AIDL — **обов'язковий** soak-тест: 5+ дзвінків поспіль після upgrade без рестарту device (перевіряє daemon respawn)
-- [ ] Підписаний APK завантажений у GitHub Release разом з SHA-256 у release notes
-- [ ] CHANGELOG entry скопійований у release notes
-- [ ] Tag створений і запушений
+- [ ] 自上个 tag 以来的所有用户可见变更已描述在 `CHANGELOG.md` 的 `## [Unreleased]` 中
+- [ ] `## [Unreleased]` 已重命名为 `## [X.Y.Z] — YYYY-MM-DD`
+- [ ] `CHANGELOG.md` 中 `## [Unreleased]` 下已创建新的空白标题及子分类
+- [ ] `CHANGELOG.md` 底部的 Compare-link 已更新
+- [ ] `app/build.gradle.kts` 中的 `versionCode` 已 bump
+- [ ] `app/build.gradle.kts` 中的 `versionName` 与新 tag 匹配
+- [ ] 如需要，`userservice/build.gradle.kts` 中的 `userServiceVersion` 已 bump（见上方矩阵）
+- [ ] `./gradlew test lintRelease assembleRelease` 无错误通过
+- [ ] Release APK 已在真机上验证（至少一台 Pixel + 一台三星）
+- [ ] Release APK 已验证从上一发布版本升级（非全新安装）
+- [ ] 如果更改了 AIDL——**强制** soak 测试：升级后连续 5 次以上通话，不重启设备（验证守护进程重新生成）
+- [ ] 已签名 APK 已上传至 GitHub Release，release notes 中包含 SHA-256
+- [ ] CHANGELOG 条目已复制到 release notes
+- [ ] Tag 已创建并推送
 
-## Rollback
+## 回滚
 
-Якщо реліз поламаний:
+如果发布版本有问题：
 
-1. **НЕ робіть `git tag -d` уже запушеного тегу** — користувачі могли клонувати.
-2. Випустіть **patch-release** (X.Y.Z+1) з фіксом. Ніколи не «replace» тег.
-3. У CHANGELOG під X.Y.Z позначте: `> ⚠️ Цей реліз має критичну ваду — використовуйте X.Y.Z+1.`
-4. У GitHub Release натисніть "Mark as pre-release" або видаліть з листка релізів якщо критично.
-5. Не видаляйте signed APK з release assets — користувачі вже мають його.
+1. **不要对已推送的 tag 执行 `git tag -d`**——用户可能已经克隆。
+2. 发布**补丁版本**（X.Y.Z+1）修复问题。永远不要"替换" tag。
+3. 在 CHANGELOG 中 X.Y.Z 下标注：`> ⚠️ 此版本存在严重缺陷 — 请使用 X.Y.Z+1。`
+4. 在 GitHub Release 中点击"Mark as pre-release"或如果严重则从发布列表中删除。
+5. 不要从 release assets 中删除已签名 APK——用户已经拥有它。
 
-## Хто може tag'ати
+## 谁可以打 tag
 
-Тільки maintainer'и з commit-доступом до `main`. Tag — це публічна обіцянка про сумісність і безпеку. Не tag'айте з feature-branch.
+只有具有 `main` 提交权限的维护者。Tag 是关于兼容性和安全性的公开承诺。不要从 feature-branch 打 tag。

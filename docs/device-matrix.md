@@ -1,39 +1,39 @@
-# Device compatibility matrix
+# 设备兼容性矩阵
 
-Реальні результати тестів запису на конкретних пристроях. Заповнюйте через PR (див. [CONTRIBUTING.md](../CONTRIBUTING.md) → «Що корисно прямо зараз»).
+具体设备上的实际录音测试结果。通过 PR 提交（参见 [CONTRIBUTING.md](../CONTRIBUTING.md) → "目前最有价值的贡献"）。
 
-## Шкала результату
+## 结果等级
 
-- ✅ — обидві сторони чути на достатньому рівні (uplink RMS > -40 dBFS, downlink RMS > -40 dBFS), без crash
-- ⚠️ — пишеться, але одна зі сторін тиха або з артефактами
-- 🟥 — fallback пройшов до MIC-only, downlink відсутній
-- ❌ — `STATE_UNINITIALIZED` / SecurityException / падіння
+- ✅ — 双方声音均达到足够水平（uplink RMS > -40 dBFS, downlink RMS > -40 dBFS），无崩溃
+- ⚠️ — 正常录制，但一方静音或有杂音
+- 🟥 — 回退至 MIC-only，无下行音频
+- ❌ — `STATE_UNINITIALIZED` / SecurityException / 崩溃
 
 ## Pixel
 
-| Пристрій | Android | Patch | Стратегія | Результат | Нотатки |
+| 设备 | Android | 补丁 | 策略 | 结果 | 备注 |
 |---|---|---|---|---|---|
-| _додайте свій_ | | | | | |
+| _添加你的设备_ | | | | | |
 
-## Samsung
+## 三星
 
-| Пристрій | Android / One UI | Patch | Стратегія | Результат | Нотатки |
+| 设备 | Android / One UI | 补丁 | 策略 | 结果 | 备注 |
 |---|---|---|---|---|---|
-| _додайте свій_ | | | | | |
+| _添加你的设备_ | | | | | |
 
-## Інші (Xiaomi, Nothing, OnePlus, Honor, ...)
+## 其他（小米、Nothing、OnePlus、Honor……）
 
-| Пристрій | Android | Patch | Стратегія | Результат | Нотатки |
+| 设备 | Android | 补丁 | 策略 | 结果 | 备注 |
 |---|---|---|---|---|---|
-| _додайте свій_ | | | | | |
+| _添加你的设备_ | | | | | |
 
-## Як заповнювати
+## 如何填写
 
-1. Установіть debug-білд: `./gradlew :app:installDebug`.
-2. Активуйте Shizuku, дайте дозвіл.
-3. Зробіть тестовий дзвінок самому собі (на іншу SIM/SIP-номер).
-4. У додатку → Settings → Debug подивіться яка стратегія застосувалася (або в logcat: `adb logcat -s RecorderController`).
-5. Прослухайте обидві доріжки у плеєрі — оцініть рівень.
-6. Внесіть рядок у відповідну таблицю + опціонально приведіть `Build.FINGERPRINT` у нотатках.
+1. 安装 debug 构建：`./gradlew :app:installDebug`。
+2. 激活 Shizuku，授予权限。
+3. 给自己打一个测试电话（另一个 SIM/SIP 号码）。
+4. 在应用 → 设置 → 调试中查看使用的策略（或在 logcat 中：`adb logcat -s RecorderController`）。
+5. 在播放器中试听两个轨道——评估音量水平。
+6. 在对应表格中添加一行 + 可选地在备注中提供 `Build.FINGERPRINT`。
 
-Повна репродукування формату: `Build.MANUFACTURER` / `Build.MODEL` (Android `Build.VERSION.RELEASE`, патч `Build.VERSION.SECURITY_PATCH`), стратегія з `RecorderController` (наприклад `DualUplinkDownlink`), результат за шкалою вище.
+完整复现格式：`Build.MANUFACTURER` / `Build.MODEL`（Android `Build.VERSION.RELEASE`，补丁 `Build.VERSION.SECURITY_PATCH`），来自 `RecorderController` 的策略（如 `DualUplinkDownlink`），按上述等级标注结果。

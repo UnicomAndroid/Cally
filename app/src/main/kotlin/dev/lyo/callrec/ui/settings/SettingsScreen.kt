@@ -271,7 +271,7 @@ fun SettingsScreen(
                 SettingCard {
                     InfoRow(
                         title = stringResource(R.string.settings_version),
-                        value = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        value = stringResource(R.string.settings_version_format, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                     )
                     Divider()
                     InfoRow(
@@ -395,7 +395,7 @@ private fun SampleRateRow(
                     onCheckedChange = { onSelect(rate) },
                     shapes = ToggleButtonDefaults.shapes(),
                     modifier = Modifier.weight(1f),
-                ) { Text("${rate / 1000} кГц") }
+                ) { Text(stringResource(R.string.settings_sample_rate_khz, rate / 1000)) }
             }
         }
     }
@@ -513,7 +513,7 @@ private val SIZE_CHOICES: List<Int?> = listOf(null, 1, 2, 5, 10, 20, 50)
 /**
  * Generic title + description + horizontally-flowing chip group used by
  * both auto-cleanup rows. `null` in [choices] represents the OFF choice
- * (rendered as "Не очищати" via [labelFor]).
+ * (rendered as "不清除" via [labelFor]).
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
